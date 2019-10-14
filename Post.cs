@@ -10,10 +10,12 @@ namespace Shackmojis
         private int id;
         private string author;
         private DateTime postDate;
+        private int parentId;
         private int numEmoji;
         private int uniqueEmoji;
+        private string modCategory;
+        private int replyCount = 0;
 
-        private bool nws=false;
         private string text;
 
         private int tag_lol;
@@ -40,7 +42,9 @@ namespace Shackmojis
         public int Tag_wow { get => tag_wow; set => tag_wow = value; }
         public int Tag_wtf { get => tag_wtf; set => tag_wtf = value; }
         public string Text { get => text; set => text = value; }
-        public bool Nws { get => nws; set => nws = value; }
-        
+        public bool Nws { get => modCategory == "nws";  }
+        public string ModCategory { get => modCategory; set => modCategory = value; }
+        public int ReplyCount { get => replyCount; set => replyCount = value; }
+        public int ParentId { get => parentId; set => parentId = value; }
     }
 }

@@ -1,11 +1,18 @@
-﻿using Newtonsoft.Json;
+﻿//using Newtonsoft.Json;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration.FileExtensions;
+using Microsoft.Extensions.Configuration.Xml;
 using System;
-using System.Collections;
+//using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
-using System.Net;
-using System.Text.RegularExpressions;
+//using System.IO;
+//using System.Net;
+//using System.Text.RegularExpressions;
 using System.Threading;
+
+
 
 /*
 MIT License
@@ -33,25 +40,92 @@ SOFTWARE.
 
 namespace Shackmojis
 {
-    //This is intended to be run about noon Central Time, so that all the threads reported on have mostly run their course.
+    //This is intended to be run about 6PM Central Time, so that all the threads reported on have mostly run their course.
 
-    //TODO  Implement Birthdays and -[ShackBattles]- from https://github.com/askedrelic/todayIs
+    //TODO  Implement Birthdays from https://github.com/askedrelic/todayIs - Does the database still exist?
+
 
     class Program
     {
-        public const string USERNAME = "<YOUR NAME HERE>";
-        public const string PASSWORD = "<YOUR PASSWORD HERE>";
 
-        public const string APIURL = "https://winchatty.com/v2/";
+        private static IConfiguration Configuration { get; } = new ConfigurationBuilder()
+            .SetBasePath(Directory.GetCurrentDirectory()) //this doesn't exist???
+            .AddXmlFile("ShackPostReport.xml", optional: false, reloadOnChange: false)
 
-        
+            // This allows us to set a system environment variable to Development
+            // when running a compiled Release build on a local workstation, so we don't
+            // have to alter our real production appsettings file for compiled-local-test.
+            //.AddXmlFile($"appsettings.{Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production"}.json", optional: true)
+
+            //.AddEnvironmentVariables()
+            //.AddAzureKeyVault()
+            .Build();
+
+        private static string uSERNAME = "<YOUR NAME HERE>"; //"<YOUR NAME HERE>";
+        private static string pASSWORD = "<YOUR PASSWORD HERE>"; //"<YOUR PASSWORD HERE>";
+
+        private static string aPIURL = "https://winchatty.com/v2/";
+
+        private static bool sLEEP = false;
+
+        public static string USERNAME { get => uSERNAME; set => uSERNAME = value; }
+        public static string PASSWORD { get => pASSWORD; set => pASSWORD = value; }
+        public static string APIURL { get => aPIURL; set => aPIURL = value; }
+        public static bool SLEEP { get => sLEEP; set => sLEEP = value; }
 
         static void Main(string[] args)
         {
-            Console.WriteLine("Hello World!");
+            Console.WriteLine("Hello World!\n");
 
+
+
+            Console.WriteLine("\n\nSettings:");
+
+            IConfigurationSection config = Configuration.GetSection("settings");
+
+            foreach(KeyValuePair<string,string> pair in config.AsEnumerable())
+            {
+                Console.WriteLine("" + pair.Key + " = " + pair.Value + "");
+            }
+
+            Console.WriteLine("\n\n");
+
+
+
+
+            USERNAME = config["username"];//My.Default.USERNAME; //ConfigurationManager.AppSettings.Get("Username"); //ShackPostSummary.Default.Login;
+            PASSWORD = config["password"];//My.Default.PASSWORD; //ConfigurationManager.AppSettings.Get("Password");
+            APIURL = config["apiurl"];//My.Default.APIURL; //ConfigurationManager.AppSettings.Get("APIurl");
+            bool sleep = config["sleep"].ToLower() == "true";//My.Default.SLEEP; //ConfigurationManager.AppSettings.Get("Sleep") == "True";
+
+
+            System.Console.WriteLine("Posting as " + USERNAME + " with pass '"+ PASSWORD+"' and sleep = " + SLEEP);
+
+            
             new ShackPostReport();
+
+
+            if (SLEEP)
+            {
+                System.Console.WriteLine("Sleeping Computer in 30 seconds\n");
+                //System.Media.SystemSounds.Beep.Play();
+                Thread.Sleep(1000);
+                System.Console.Beep();
+
+                Thread.Sleep(30 * 1000);
+
+                //System.Media.SystemSounds.Beep.Play();
+                Thread.Sleep(1000);
+                System.Console.Beep();
+                Thread.Sleep(1000);
+
+                //sleep computer wehn done
+                System.Console.WriteLine("Sleeping!\n\n");
+                //System.Windows.Forms.Application.SetSuspendState(PowerState.Suspend, false, false);
+                Process.Start("shutdown", "/h /f");
+            }
         }
+
 
     }
 }

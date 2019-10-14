@@ -15,7 +15,7 @@ namespace Shackmojis
         public const int TAG_WTF = 6;
         public const int TAG_MAX = 7;
 
-        int tag = 0;
+        readonly int tag = 0;
 
         public PostCompareTag(int fortag)
         {
@@ -24,8 +24,8 @@ namespace Shackmojis
 
         int IComparer<Post>.Compare(Post px, Post py)
         {
-            int xval = getTag(px, tag);
-            int yval = getTag(py, tag);
+            int xval = GetTagCount(px, tag);
+            int yval = GetTagCount(py, tag);
             if (xval > yval)
             {
                 return -1;
@@ -45,7 +45,7 @@ namespace Shackmojis
             return 0;
         }
 
-        public static int getTag(Post p,int tag)
+        public static int GetTagCount(Post p,int tag)
         {
             switch (tag)
             {
@@ -66,7 +66,7 @@ namespace Shackmojis
             }
         }
 
-        public static string getTagName( int tag)
+        public static string GetTagName( int tag)
         {
             switch (tag)
             {
