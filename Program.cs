@@ -96,7 +96,7 @@ namespace Shackmojis
             USERNAME = config["username"];//My.Default.USERNAME; //ConfigurationManager.AppSettings.Get("Username"); //ShackPostSummary.Default.Login;
             PASSWORD = config["password"];//My.Default.PASSWORD; //ConfigurationManager.AppSettings.Get("Password");
             APIURL = config["apiurl"];//My.Default.APIURL; //ConfigurationManager.AppSettings.Get("APIurl");
-            bool sleep = config["sleep"].ToLower() == "true";//My.Default.SLEEP; //ConfigurationManager.AppSettings.Get("Sleep") == "True";
+            SLEEP = config["sleep"].ToLower() == "true";//My.Default.SLEEP; //ConfigurationManager.AppSettings.Get("Sleep") == "True";
 
 
             System.Console.WriteLine("Posting as " + USERNAME + " with pass '"+ PASSWORD+"' and sleep = " + SLEEP);
