@@ -109,6 +109,9 @@ namespace Shackmojis
                 }
             }
 
+            //string testPost = "Test Post\n/{{ 1,  2,  3\r11, 22, 33\r}}/";
+            //int id = MakePost(38956503, testPost);
+
             //int id = MakePost(0, "Test post, please ignore.");
 
             //System.Console.WriteLine("post id: " + id);
@@ -259,7 +262,7 @@ namespace Shackmojis
 
 
             int id = MakePost(0, bodyParent);
-            /*
+            //*
             id = 1;
             /*/
             id = GetNewRootPostId(bodyParent);
@@ -359,7 +362,7 @@ namespace Shackmojis
                         if (i < 10 || u.PostCount > (mostPosts * .6) || u.CharCount > 10000)
                         {
                             body2 += "" + (""+u.PostCount).PadLeft(3) + ", " + (""+(u.PostCount - u.ReplyCount)).PadLeft(2) + ", " +
-                               (""+ u.ReplyCount).PadLeft(3) + ", " + (""+u.CharCount).PadLeft(5) + ", " + u.Name + "\n";
+                               (""+ u.ReplyCount).PadLeft(3) + ", " + (""+u.CharCount).PadLeft(5) + ", " + u.Name + "\r\n";
                         }
                     }
                     body2 += "}}/";
@@ -368,13 +371,13 @@ namespace Shackmojis
                 body2 += "\n\n\n" + GetEmojiReport() + "\n\n\n";
 
                 //post time
-                body2 += "Hour from start, root posts, replies, total posts\n/{{";
+                body2 += "Posts Per Hour:\nHour from start, root posts, replies, total posts\n/{{";
                 for(int t = 0; t < maxHours; t++)
                 {
                     if (postTime[0, t] + postTime[1, t] > 0)
                     {
                         body2 += "" + ("" + t).PadLeft(2) + ", " + ("" + postTime[0, t]).PadLeft(3) + ", " + ("" + postTime[1, t]).PadLeft(3) + ", " +
-                            ("" + (postTime[0, t] + postTime[1, t])).PadLeft(3) +"\n";
+                            ("" + (postTime[0, t] + postTime[1, t])).PadLeft(3) +"\r\n";
                     }
                 }
                 body2 += "}}/\n";
@@ -405,13 +408,13 @@ namespace Shackmojis
             for (int i = 0; i < 10 && i < posts.Count; i++)
             {
                 Post p = posts.Values[i];
-                body += "s[s[https://www.shacknews.com/chatty?id=" + p.Id + "#item_" + p.Id + "]s]s , " + (""+p.NumEmoji).PadLeft(2) + ", " + (""+p.UniqueEmoji).PadLeft(2) + ", " + p.Emojis + "\n";
+                body += "s[s[https://www.shacknews.com/chatty?id=" + p.Id + "#item_" + p.Id + "]s]s , " + (""+p.NumEmoji).PadLeft(2) + ", " + (""+p.UniqueEmoji).PadLeft(2) + ", " + p.Emojis + "\r\n";
             }
             body += "}}/\n\nPosters using the most emoji:\nName, Number of Emoji, Unique Emoji, Emojis\n/{{";
             for (int i = 0; i < 10 && i < posters.Count; i++)
             {
                 Person per = posters.Values[i];
-                body += "" + (per.Name).PadRight(32) + ", " + (""+per.EmojiCount).PadLeft(2) + ", " + (""+per.UniqueEmoji).PadLeft(2) + ", " + per.Emojis + "\n";
+                body += "" + (per.Name).PadRight(32) + ", " + (""+per.EmojiCount).PadLeft(2) + ", " + (""+per.UniqueEmoji).PadLeft(2) + ", " + per.Emojis + "\r\n";
             }
             body += "}}/\n";
             return body;
@@ -803,7 +806,7 @@ namespace Shackmojis
 
         public static int MakePost(int parent, string body, int attempt = 1)
         {
-            /*  Toggle comment - switch the beginning of this line between /* and //* (add or remove first /) to toggle function on or off
+            //*  Toggle comment - switch the beginning of this line between /* and //* (add or remove first /) to toggle function on or off
             return 1;
             /*/
              

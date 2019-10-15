@@ -101,7 +101,9 @@ namespace Shackmojis
 
             System.Console.WriteLine("Posting as " + USERNAME + " with pass '"+ PASSWORD+"' and sleep = " + SLEEP);
 
-            
+            System.Console.WriteLine("\nShort delay...\n");
+            Thread.Sleep(10 * 1000);  //10 second delay to allow network to re-connect if we just awoke from sleep.
+
             new ShackPostReport();
 
 
