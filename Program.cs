@@ -2,6 +2,8 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.FileExtensions;
 using Microsoft.Extensions.Configuration.Xml;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using System;
 //using System.Collections;
 using System.Collections.Generic;
@@ -78,6 +80,18 @@ namespace Shackmojis
             Console.WriteLine("Hello World!\n");
 
 
+            var loggerFactory = LoggerFactory.Create(builder =>
+            {
+                builder
+                    .AddFilter("Microsoft", LogLevel.Warning)
+                    .AddFilter("System", LogLevel.Warning)
+                    .AddFilter("LoggingConsoleApp.Program", LogLevel.Debug)
+                    .AddConsole()
+                    .AddEventLog();
+            });
+            ILogger logger = loggerFactory.CreateLogger<Program>();
+            logger.LogInformation("ShackPostSummary Starting up...");
+
 
             Console.WriteLine("\n\nSettings:");
 
@@ -99,17 +113,55 @@ namespace Shackmojis
             SLEEP = config["sleep"].ToLower() == "true";//My.Default.SLEEP; //ConfigurationManager.AppSettings.Get("Sleep") == "True";
 
 
-            System.Console.WriteLine("Posting as " + USERNAME + " with pass '"+ PASSWORD+"' and sleep = " + SLEEP);
+            //System.Console.WriteLine("Posting as '" + USERNAME + "' with pass '"+ PASSWORD+"' and sleep = " + SLEEP);
+            logger.LogInformation("Posting as '" + USERNAME + "' and sleep = " + SLEEP);
 
             System.Console.WriteLine("\nShort delay...\n");
             Thread.Sleep(10 * 1000);  //10 second delay to allow network to re-connect if we just awoke from sleep.
 
-            new ShackPostReport();
+
+            //test network
+            int count = 5;
+            while (count > 0)
+            {
+                try
+                {
+                    string content = ShackPostReport.GetUrl(APIURL+ "readme");
+                    if (content.Length > 0)
+                    {
+                        break; //network
+                    }
+                    count--;
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Error when testing network connection", APIURL);
+                }
+                Thread.Sleep(30 * 1000);//wait and try again
+            }
+
+            //ready to run
+            if (count > 0)
+            {
+                try
+                {
+                    new ShackPostReport();
+                }
+                catch(Exception ex)
+                {
+                    logger.LogError(ex, "Error occurred while running post report!");
+                }
+            }
+            else
+            {
+                logger.LogError("Failed to contact API!");
+            }
 
 
             if (SLEEP)
             {
                 System.Console.WriteLine("Sleeping Computer in 30 seconds\n");
+                logger.LogInformation("Sleeping Computer in 30 seconds");
                 //System.Media.SystemSounds.Beep.Play();
                 Thread.Sleep(1000);
                 System.Console.Beep();
@@ -123,8 +175,14 @@ namespace Shackmojis
 
                 //sleep computer wehn done
                 System.Console.WriteLine("Sleeping!\n\n");
+                logger.LogInformation("Sleeping Computer and exitting");
+
                 //System.Windows.Forms.Application.SetSuspendState(PowerState.Suspend, false, false);
                 Process.Start("shutdown", "/h /f");
+            }
+            else
+            {
+                logger.LogInformation("Exitting");
             }
         }
 

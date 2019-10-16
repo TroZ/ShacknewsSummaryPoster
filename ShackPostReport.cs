@@ -261,12 +261,14 @@ namespace Shackmojis
             System.Console.WriteLine("\n\n");
 
 
-            int id = MakePost(0, bodyParent);
-            //*
+            //int id = MakePost(0, bodyParent);
+            /*
             id = 1;
             /*/
-            id = GetNewRootPostId(bodyParent);
+            //id = GetNewRootPostId(bodyParent);
             //*/
+
+            int id = 38989206;
 
             if (id > 0)
             {
@@ -763,8 +765,7 @@ namespace Shackmojis
             startTime = utc;
 
             utc = utc.AddDays(1); //adding 1 day due to it seeming that the date is the end date of the day requested, not the start date.
-            
-            
+
             //utc = utc.AddMinutes(TimeZoneInfo.Local.GetUtcOffset(d).TotalMinutes);
             //the time doesn't seem to matter, will alwayss return the posts for the 24 hours ending on that UTC day.
 
@@ -806,7 +807,7 @@ namespace Shackmojis
 
         public static int MakePost(int parent, string body, int attempt = 1)
         {
-            //*  Toggle comment - switch the beginning of this line between /* and //* (add or remove first /) to toggle function on or off
+            /*  Toggle comment - switch the beginning of this line between /* and //* (add or remove first /) to toggle function on or off
             return 1;
             /*/
              
@@ -848,10 +849,14 @@ namespace Shackmojis
                         Thread.Sleep(120 * 1000); //hope it was PRL and retry after waiting
                        return MakePost(parent, body, 0);
                     }
+                    else
+                    {
+                        throw new Exception("Error making post to " + Program.APIURL + ", result: " + responseText);
+                    }
                 }
             }
 
-            return 0;
+            //return 0;
             //*/
         }
 
@@ -1322,7 +1327,7 @@ namespace Shackmojis
                     var time = timeNode.Attributes["datetime"].Value;
 
                     DateTime dt = DateTime.Parse(time);
-                    if(dt.AddDays(2) > DateTime.Now || i < 2)
+                    if(dt.AddDays(2) > DateTime.Now || i < 3)
                     {
                         //include article
                         text += titleNode.InnerText + " s[" + urlNode.Attributes["href"].Value + "]s\n";
@@ -1376,7 +1381,7 @@ namespace Shackmojis
             for (int i = 0; i < publishedNode.Count-1 && i < linkNode.Count-2 && i < mtitleNode.Count; i++)
             {
                 DateTime ptime = DateTime.Parse(publishedNode[i+1].InnerText);
-                if (ptime.AddDays(2) > DateTime.Now || i < 2)
+                if (ptime.AddDays(2) > DateTime.Now || i < 3)
                 {
                     string link = linkNode[i+2].Attributes["href"].Value;
                     string title = mtitleNode[i].InnerText;
