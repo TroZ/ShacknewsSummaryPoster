@@ -62,6 +62,8 @@ namespace Shackmojis
         readonly SortedList<Post, Post> postsModNws = new SortedList<Post, Post>(new PostCompareDate());
         readonly String[] ModTypes = { "Informative", "Tangent", "Stupid", "Political", "NWS" };
 
+        readonly SortedList<Post, Post> threadChattyness = new SortedList<Post, Post>(new PostCompareChattyness());
+
         Post biggestThread;
         int biggestThreadCount=0;
         Post mostReplied;
@@ -72,6 +74,7 @@ namespace Shackmojis
         //static Regex rx = new Regex(@"&#x?[a-fA-F0-9]{2,6};", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         readonly static Regex rxTag = new Regex(@"<[^>]*>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         readonly static Regex rxLink = new Regex(@"</?a[^>]*>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        readonly static Regex rxFullLink = new Regex(@"<a.*?/a>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         int rootCount = 0;
         int replyCount = 0;
@@ -155,13 +158,31 @@ namespace Shackmojis
                 posters.Add(pp, pp); //makes a sorted list by number of emojis
             }
 
-            string bodyParent = SUMMARY_THREAD_START + yesterday.ToLongDateString() + " s[Roots posts from " +
-                minPostDate.ToShortDateString() + " " + minPostDate.ToShortTimeString() + " to " +
-                maxPostDate.ToShortDateString() + " " + maxPostDate.ToShortTimeString() + " " + System.TimeZoneInfo.Local.StandardName +
-                "]s\n" + rootCount + " Root Posts, " + replyCount + " Replies, " +
-                informativeCount + " informative posts, " + ontopicCount + " ontopic posts, " + tangentCount + " tangent posts, " +
-                stupidCount + " stupid posts, " + politicalCount + " political posts, " + nwsCount + " nws posts.\n" +
-                lolCount + " LOL tags, " + infCount + " INF tags, " + unfCount + " UNF tags, " + tagCount + " TAG tags, " +
+            string bodyParent = SUMMARY_THREAD_START + yesterday.ToLongDateString() + ", the "+AddOrdinal(yesterday.DayOfYear)+" day of the year.\n";
+            bodyParent += "" + rootCount + " Root Posts, " + replyCount + " Replies";
+            if (informativeCount > 0) {
+                bodyParent += ", " + informativeCount + " informative posts";
+            }
+            //if (ontopicCount > 0) { //default is ontopic, so we don't really need to print the number
+            //    bodyParent += ", " + ontopicCount + " ontopic posts";
+            //}
+            if (tangentCount > 0)
+            {
+                bodyParent += ", " + tangentCount + " tangent posts";
+            }
+            if (stupidCount > 0)
+            {
+                bodyParent += ", " + stupidCount + " stupid posts";
+            }
+            if (politicalCount > 0)
+            {
+                bodyParent += ", " + politicalCount + " political posts";
+            }
+            if (nwsCount > 0)
+            {
+                bodyParent += ", " + nwsCount + " nws posts";
+            }
+            bodyParent += ".\n" + lolCount + " LOL tags, " + infCount + " INF tags, " + unfCount + " UNF tags, " + tagCount + " TAG tags, " +
                 wowCount + " WOW tags, " + awwCount + " AWW tags, " + wtfCount + " WTF tags.\n";
 
             //daily thing
@@ -261,19 +282,20 @@ namespace Shackmojis
             System.Console.WriteLine("\n\n");
 
 
-            //int id = MakePost(0, bodyParent);
+            int id = MakePost(0, bodyParent);
             /*
             id = 1;
             /*/
-            //id = GetNewRootPostId(bodyParent);
+            id = GetNewRootPostId(bodyParent);
             //*/
-
-            int id = 38989206;
 
             if (id > 0)
             {
 
-                string body2 = "Moderated Posts:\n";
+                string body2 = "Moderated Posts"+ " s[Roots posts from " +
+                minPostDate.ToShortDateString() + " " + minPostDate.ToShortTimeString() + " to " +
+                maxPostDate.ToShortDateString() + " " + maxPostDate.ToShortTimeString() + " " + System.TimeZoneInfo.Local.StandardName +
+                "]s:\n";
                 for (int i = 0;i< modLists.Length; i++)
                 {
                     if(modLists[i].Count < 10 && modLists[i].Count > 0)
@@ -329,12 +351,12 @@ namespace Shackmojis
 
                 //thread summary post:
                 body2 = "Largest thread: " + biggestThreadCount + " replies\n";
-                body2 += PrintPost(biggestThread, -1, 500) + "\n\n\n";
+                body2 += PrintPost(biggestThread, -1, 400) + "\n\n\n";
 
                 if (mostReplied != biggestThread)
                 {
                     body2 += "Post with the most direct replies (" + mostReplied.ReplyCount + "):\n";
-                    body2 += PrintPost(mostReplied, -1, 500) + "\n\n\n";
+                    body2 += PrintPost(mostReplied, -1, 400) + "\n\n\n";
                 }
                 else
                 {
@@ -343,7 +365,18 @@ namespace Shackmojis
 
                 //most shack tags
                 body2 += "Post with the most Shack Tags (" + mostTagsCount + "):\n";
-                body2 += PrintPost(mostTags, -1, 500) + "\n\n\n";
+                body2 += PrintPost(mostTags, -1, 400) + "\n\n\n";
+
+
+                //chattiestThreads
+                body2 += "Chattiest Threads (with 10 or more posts):\n";
+                for(int c = 0;c<3 && c < threadChattyness.Count; c++)
+                {
+                    Post p = threadChattyness.Values[c];
+                    body2 += String.Format("{0:0.0} words per post, started ", p.ThreadChattyness);
+                    body2 += PrintPost(p, -1, 100) + "\n\n";
+                } 
+                body2 += "\n\n\n";
 
                 //top users posts
                 {
@@ -358,7 +391,7 @@ namespace Shackmojis
                         mostPosts = users.Values[0].PostCount;
                     }
                     body2 += "\nTop Posters:\nTotal Posts, Root Posts, Replies, Characters, Name\n/{{";
-                    for (int i = 0; i < 15 && i < users.Count; i++)
+                    for (int i = 0; i < 20 && i < users.Count; i++)
                     {
                         Person u = users.Values[i];
                         if (i < 10 || u.PostCount > (mostPosts * .6) || u.CharCount > 10000)
@@ -367,7 +400,9 @@ namespace Shackmojis
                                (""+ u.ReplyCount).PadLeft(3) + ", " + (""+u.CharCount).PadLeft(5) + ", " + u.Name + "\r\n";
                         }
                     }
-                    body2 += "}}/";
+                    body2 += "}}/\n\n";
+
+                    body2 += "Unique Posters: " + posterList.Count + "\n";
                 }
 
                 body2 += "\n\n\n" + GetEmojiReport() + "\n\n\n";
@@ -762,7 +797,11 @@ namespace Shackmojis
             utc = utc.AddHours(-utc.Hour);
             utc = utc.AddMinutes(-utc.Minute);
             utc = utc.AddSeconds(-utc.Second);
-            startTime = utc;
+
+            //startTime = utc.AddMinutes(-(System.TimeZoneInfo.Local.GetUtcOffset(day).TotalMinutes)); //not sure where this comes from, is the date not really utc as the doc says?
+            startTime = utc.AddHours(5);//not sure why this doesn't seem right, but adding 5 makes the earliest posts come out to be the same hour as startTime, so...
+            DateTime test = startTime.ToLocalTime();
+            Console.WriteLine("test time = " + test);
 
             utc = utc.AddDays(1); //adding 1 day due to it seeming that the date is the end date of the day requested, not the start date.
 
@@ -873,8 +912,9 @@ namespace Shackmojis
                         string date = post.date;
                         DateTime postTime = post.date.Value;
                         //DateTime postTime = DateTime.Parse(date);
+                        postTime = postTime.ToLocalTime();
 
-                        if(postTime > maxPostDate)
+                        if (postTime > maxPostDate)
                         {
                             maxPostDate = postTime;
                         }
@@ -925,7 +965,6 @@ namespace Shackmojis
             dynamic thread = GetJSON(url);
 
             //System.Console.WriteLine(thread.ToString());
-
             if (thread != null)
             {
                 if (thread.threads != null && thread.threads[0].posts != null)
@@ -966,6 +1005,23 @@ namespace Shackmojis
                     mostReplied = post;
                 }
             }
+            //chattyness
+            int wordCount = 0;
+            Post root = null;
+            foreach (Post post in currentThread.Values)
+            {
+                if(post.ParentId == 0)
+                {
+                    root = post;
+                }
+                wordCount += post.WordCount;
+            }
+            if (root != null && currentThread.Count > 9)
+            {
+                root.ThreadChattyness = wordCount / (double)currentThread.Count;
+                threadChattyness.Add(root,root);
+            }
+                
             currentThread.Clear();
         }
 
@@ -1013,47 +1069,22 @@ namespace Shackmojis
                 pt.Text = body;
                 currentThread.Add(pt.Id, pt);
 
-                string emojis;
                 int count;
-                int unique;
-                GetEmojis(body, out emojis, out count, out unique);
-                pt.Emojis = emojis;
+                HashSet<string> emojis = new HashSet<string>();
+                count = GetEmojis(body, emojis);
+                pt.Emojis = String.Join("",emojis);
                 pt.NumEmoji = count;
-                pt.UniqueEmoji = unique;
+                pt.UniqueEmoji = emojis.Count;
                 pt.ModCategory = mod;
 
                 p.EmojiCount += pt.NumEmoji;
-
-                //add emoji from post to person
-                for (int i = 0; i < emojis.Length; i++)
-                {
-                    char c = emojis[i];
-                    String em = "";
-                    if (c > 0x2100 && c < 0x2c00)
-                    {
-                        em += c;
-                    }
-                    else if (char.IsSurrogate(c) && i + 1 < emojis.Length)
-                    {
-                        em += "" + c + emojis[i + 1];
-                        i++;
-                    }
-                    if (em.Length > 0)
-                    {
-                        p.EmojiCount++;
-                        if (!p.Emojis.Contains(em))
-                        {
-                            p.Emojis += em;
-                            p.UniqueEmoji++;
-                        }
-                    }
-                }
-
 
                 if (pt.NumEmoji > 0)
                 {
                     posts.Add(pt, pt);
 
+                    //add emoji from post to person
+                    p.addEmoji(emojis);
                 }
 
                 //do lols
@@ -1102,13 +1133,13 @@ namespace Shackmojis
 
                 //add to date array
                 bool root = parent == 0;
-                DateTime postT = pt.PostDate.ToLocalTime();//.ToUniversalTime();  already UTC?
-                int hour = postT.Hour;
+                DateTime postT = pt.PostDate;//.ToLocalTime();//.ToUniversalTime();  already UTC?
+                int hour = postT.Hour - startTime.Hour;
                 if(postT.Day != startTime.Day)
                 {
                     hour += 24;
                 }
-                if(hour < maxHours)
+                if(hour < maxHours && hour >= 0)
                 {
                     postTime[root ? 0 : 1, hour]++;
                 }
@@ -1116,7 +1147,38 @@ namespace Shackmojis
                 {
                     Console.WriteLine("this shouldn't happen");
                 }
+
+                //count words, ignore urls
+                string text = body.Trim();
+                text = text.Replace("<br>", "\n").Replace("<br />", "\n");
+                text = rxFullLink.Replace(text, "");
+
+                pt.WordCount = CountWords(text);
             }
+        }
+
+        public static int CountWords(string text)
+        {
+            int wordCount = 0, index = 0;
+
+            // skip whitespace until first word
+            while (index < text.Length && char.IsWhiteSpace(text[index]))
+                index++;
+
+            while (index < text.Length)
+            {
+                // check if current char is part of a word
+                while (index < text.Length && !char.IsWhiteSpace(text[index]))
+                    index++;
+
+                wordCount++;
+
+                // skip whitespace until next word
+                while (index < text.Length && char.IsWhiteSpace(text[index]))
+                    index++;
+            }
+
+            return wordCount;
         }
 
         public static int CountShackTags(string text)
@@ -1171,14 +1233,10 @@ namespace Shackmojis
             }
         }
 
-        public static void GetEmojis(string text, out string emojis, out int count, out int unique)
+        public static int GetEmojis(string text, HashSet<string> emojis )
         {
             //returns a string of unique emojis, a total count and a unique count for a specified text
-            emojis = "";
-            count = 0;
-            unique = 0;
-
-
+            int count = 0;
 
             for (int i = 0; i < text.Length; i++)
             {
@@ -1188,22 +1246,63 @@ namespace Shackmojis
                 {
                     em += c;
                 }
-                else if (char.IsSurrogate(c) && i + 1 < text.Length)//non-basic multilingual plain character - count them all as emoji
+                else if (char.IsSurrogate(c) && i + 1 < text.Length && char.IsSurrogate(text[i + 1]))//non-basic multilingual plain character - count them all as emoji
                 {
                     em += "" + c + text[i + 1];
                     i++;
                 }
 
+                if (em.Length > 0) {
+                    //check for additional codepoints that should be included (zero width joiner, fitzpatrick, emoji varation selector)
+                    bool added = true;
+                    while (added && i + 1 < text.Length)
+                    {
+                        added = false;
+                        char n = text[i + 1];
+                        char nn = ' ';
+                        if (i + 2 < text.Length)
+                        {
+                            nn = text[i + 2];
+                        }
+                        if( n == 0xfe0f)
+                        {
+                            em += "" + n;
+                            i++;
+                            added = true;
+                        }
+                        else if (n == 0x200D) //zero width joiner
+                        {
+                            //zwj - include zwj and next character (or two if next is a surrogate)
+                            if (char.IsSurrogate(nn) && i + 3 < text.Length && char.IsSurrogate(text[i + 3]))
+                            {
+                                em += "" + n + nn + text[i + 3];
+                                i += 3;
+                            }
+                            else
+                            {
+                                em += "" + n + nn;
+                                i += 2;
+                            }
+                            added = true;
+                        } else if (n == 0xd83c && nn >= 0xdffb && nn <= 0xdfff) //fitzpatrick as surrogate pairs
+                        {
+                            em += "" + n + nn;
+                            i += 2;
+                            added = true;
+                        }
+
+                    }
+                }
+
+
                 if (em.Length > 0)
                 {
                     count++;
-                    if (!emojis.Contains(em))
-                    {
-                        emojis += em;
-                        unique++;
-                    }
+                    emojis.Add(em);
                 }
             }
+
+            return count;
 
             /* this was written assuming the API return the emoji encoded as an html entity, but apparently this isn't the case.
             if (text.Contains("&#"))
@@ -1256,8 +1355,7 @@ namespace Shackmojis
             }
             Person p = new Person();
             p.Name = name;
-            p.Emojis = "";
-            p.EmojiCount = 0;
+             p.EmojiCount = 0;
             posterList.Add(name, p);
             return p;
         }
@@ -1423,6 +1521,32 @@ namespace Shackmojis
             }
 
             return id;
+        }
+
+        public static string AddOrdinal(int num)
+        {
+            if (num <= 0) return num.ToString();
+
+            switch (num % 100)
+            {
+                case 11:
+                case 12:
+                case 13:
+                    return num + "th";
+            }
+
+            switch (num % 10)
+            {
+                case 1:
+                    return num + "st";
+                case 2:
+                    return num + "nd";
+                case 3:
+                    return num + "rd";
+                default:
+                    return num + "th";
+            }
+
         }
     }
 

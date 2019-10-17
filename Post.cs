@@ -28,6 +28,9 @@ namespace Shackmojis
 
         private string emojis;
 
+        private int wordCount;
+        private double threadChattyness;
+
         public int Id { get => id; set => id = value; }
         public string Author { get => author; set => author = value; }
         public DateTime PostDate { get => postDate; set => postDate = value; }
@@ -46,5 +49,7 @@ namespace Shackmojis
         public string ModCategory { get => modCategory; set => modCategory = value; }
         public int ReplyCount { get => replyCount; set => replyCount = value; }
         public int ParentId { get => parentId; set => parentId = value; }
+        public int WordCount { get => wordCount; set => wordCount = value; }
+        public double ThreadChattyness { get => threadChattyness; set => threadChattyness = value; }
     }
 }
