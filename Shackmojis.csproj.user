@@ -3,6 +3,7 @@
   <PropertyGroup>
     <ShowAllFiles>true</ShowAllFiles>
     <ActiveDebugProfile>Shackmojis</ActiveDebugProfile>
+    <_LastSelectedProfileId>C:\Users\TroZ\Documents\Projects\Shackmojis\Properties\PublishProfiles\FolderProfile.pubxml</_LastSelectedProfileId>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
     <DebuggerFlavor>ProjectDebugger</DebuggerFlavor>
