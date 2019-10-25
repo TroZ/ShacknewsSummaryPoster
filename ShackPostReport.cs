@@ -286,7 +286,7 @@ namespace Shackmojis
 
             int id = MakePost(0, bodyParent);
             /*
-            id = 1;
+            id =  1;
             /*/
             id = GetNewRootPostId(bodyParent,Program.USERNAME);
             //*/
@@ -317,7 +317,6 @@ namespace Shackmojis
                 MakePost(id, body2);
                 Thread.Sleep(60 * 1000); //wait 60 seconds for PRL reasons 
 
-                /*
                 for (int tagType = 0; tagType < PostCompareTag.TAG_MAX; tagType++)
                 {
 
@@ -355,13 +354,40 @@ namespace Shackmojis
                     body += PrintMultiLoler(tagLists[tagType], count, tagType);
                     body += PrintPostList(tagLists[tagType], count, tagType);
 
+                    body += "\n\n\n\n";
+                    //now add top person list
+                    SortedList<Person, Person> personTagged = new SortedList<Person, Person>(new PersonCompareTag(tagType));
+                    foreach(Person P in posterList.Values)
+                    {
+                        if (PersonCompareTag.GetTagCount(P, tagType) > 0)
+                        {
+                            personTagged.Add(P, P);
+                        }
+                    }
+                    int maxp = 10;
+                    if(personTagged.Count < maxp)
+                    {
+                        maxp = personTagged.Count;
+                    }
+                    body += "Top " + maxp + " " + PersonCompareTag.GetTagName(tagType) + "'d posters:\n";
+                    int pp = 0;
+                    foreach(Person P in personTagged.Values)
+                    {
+                        body += "" + PersonCompareTag.GetTagCount(P, tagType) + " - " + P.Name + "\n";
+                        pp++;
+                        if (pp >= maxp) {
+                            break;
+                        }
+                    }
+
+
+
                     System.Console.WriteLine(body);
                     System.Console.WriteLine("\n\n");
                     MakePost(id, body); //post a tag report
                     Thread.Sleep(60 * 1000); //wait 60 seconds for PRL reasons 
 
                 }
-                */
 
 
                 if (DateTime.Now.DayOfWeek == System.DayOfWeek.Sunday ||
@@ -1282,9 +1308,17 @@ namespace Shackmojis
                         }
                     }
                 }
+                //person lols
+                p.Tag_lol_recv_count += pt.Tag_lol;
+                p.Tag_inf_recv_count += pt.Tag_inf;
+                p.Tag_unf_recv_count += pt.Tag_unf;
+                p.Tag_tag_recv_count += pt.Tag_tag;
+                p.Tag_wow_recv_count += pt.Tag_wow;
+                p.Tag_aww_recv_count += pt.Tag_aww;
+                p.Tag_wtf_recv_count += pt.Tag_wtf;
 
                 //do mod categories
-                if(pt.ModCategory != "ontopic") //ignore ontopic, as that is the default which most posts are tagged
+                if (pt.ModCategory != "ontopic") //ignore ontopic, as that is the default which most posts are tagged
                 {
                     switch (pt.ModCategory)
                     {
