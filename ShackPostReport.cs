@@ -103,7 +103,7 @@ namespace Shackmojis
         public ShackPostReport()
         {
             DateTime now = DateTime.Now;
-            DateTime yesterday = now.AddDays(-1);
+            DateTime yesterday = now.AddDays(-2);  //this should be -1 !!!
 
             //clear postTime
             for(int x = 0; x < 2; x++)
@@ -285,7 +285,7 @@ namespace Shackmojis
 
 
             int id = MakePost(0, bodyParent);
-            /*
+            //*
             id =  1;
             /*/
             id = GetNewRootPostId(bodyParent,Program.USERNAME);
@@ -298,6 +298,7 @@ namespace Shackmojis
                 minPostDate.ToShortDateString() + " " + minPostDate.ToShortTimeString() + " to " +
                 maxPostDate.ToShortDateString() + " " + maxPostDate.ToShortTimeString() + " " + System.TimeZoneInfo.Local.StandardName +
                 "]s:\n";
+/*
                 for (int i = 0;i< modLists.Length; i++)
                 {
                     if(modLists[i].Count < 10 && modLists[i].Count > 0)
@@ -399,16 +400,16 @@ namespace Shackmojis
                     Thread.Sleep(60 * 1000); //wait 60 seconds for PRL reasons 
                 }
 
-
+*/
 
                 //thread summary post:
                 body2 = "Largest thread: " + biggestThreadCount + " replies\n";
-                body2 += PrintPost(biggestThread, -1, 200) + "\n\n\n";
+                body2 += PrintPost(biggestThread, -1, 100) + "\n\n\n";
 
                 if (mostReplied != biggestThread)
                 {
                     body2 += "Post with the most direct replies (" + mostReplied.ReplyCount + "):\n";
-                    body2 += PrintPost(mostReplied, -1, 200) + "\n\n\n";
+                    body2 += PrintPost(mostReplied, -1, 100) + "\n\n\n";
                 }
                 else
                 {
@@ -417,7 +418,7 @@ namespace Shackmojis
 
                 //most shack tags
                 body2 += "Post with the most Shack Tags (" + mostTagsCount + "):\n";
-                body2 += PrintPost(mostTags, -1, 200) + "\n\n\n";
+                body2 += PrintPost(mostTags, -1, 100) + "\n\n\n";
 
 
                 //chattiestThreads
@@ -461,13 +462,12 @@ namespace Shackmojis
                 body2 += "\n\n\n" + GetEmojiReport() + "\n\n\n";
 
                 //post time
-                body2 += "Posts Per Hour:\nHour from start, root posts, replies, total posts\n/{{";
+                body2 += "Posts Per Hour:\nHour from start, root posts, replies\n/{{";
                 for(int t = 0; t < maxHours; t++)
                 {
                     if (postTime[0, t] + postTime[1, t] > 0)
                     {
-                        body2 += "" + ("" + t).PadLeft(2) + ", " + ("" + postTime[0, t]).PadLeft(3) + ", " + ("" + postTime[1, t]).PadLeft(3) + ", " +
-                            ("" + (postTime[0, t] + postTime[1, t])).PadLeft(3) +"\r\n";
+                        body2 += "" + ("" + t).PadLeft(2) + ", " + ("" + postTime[0, t]).PadLeft(3) + ", " + ("" + postTime[1, t]).PadLeft(3) + "\r\n";
                     }
                 }
                 body2 += "}}/\n";
@@ -609,13 +609,13 @@ namespace Shackmojis
             for (int i = 0; i < 10 && i < posts.Count; i++)
             {
                 Post p = posts.Values[i];
-                body += "s[s[https://www.shacknews.com/chatty?id=" + p.Id + "#item_" + p.Id + "]s]s , " + (""+p.NumEmoji).PadLeft(2) + ", " + (""+p.UniqueEmoji).PadLeft(2) + ", " + ((p.Emojis.Length<42)?p.Emojis:p.Emojis.Substring(0,40)+"...") + "\r\n";
+                body += "s[s[https://www.shacknews.com/chatty?id=" + p.Id + "#item_" + p.Id + "]s]s , " + (""+p.NumEmoji).PadLeft(2) + ", " + (""+p.UniqueEmoji).PadLeft(2) + ", " + GetFirstCodePoints(p.Emojis,10,true) + "\r\n";
             }
             body += "}}/\n\nPosters using the most emoji:\nName, Number of Emoji, Unique Emoji, Emojis\n/{{";
             for (int i = 0; i < 10 && i < posters.Count; i++)
             {
                 Person per = posters.Values[i];
-                body += "" + (per.Name).PadRight(20) + ", " + (""+per.EmojiCount).PadLeft(2) + ", " + (""+per.UniqueEmoji).PadLeft(2) + ", " + ((per.Emojis.Length < 42) ? per.Emojis : per.Emojis.Substring(0, 40) + "...") + "\r\n";
+                body += "" + (per.Name).PadRight(20) + ", " + (""+per.EmojiCount).PadLeft(2) + ", " + (""+per.UniqueEmoji).PadLeft(2) + ", " + GetFirstCodePoints(per.Emojis, 15, true) + "\r\n";
             }
             body += "}}/\n";
             return body;
@@ -1022,7 +1022,7 @@ namespace Shackmojis
 
         public static int MakePost(int parent, string body, int attempt = 1)
         {
-            /*  Toggle comment - switch the beginning of this line between /* and //* (add or remove first /) to toggle function on or off
+            //*  Toggle comment - switch the beginning of this line between /* and //* (add or remove first /) to toggle function on or off
             return 1;
             /*/
              
@@ -1531,6 +1531,43 @@ namespace Shackmojis
                 }
             }
             */
+        }
+
+        public static string GetFirstCodePoints(String text,int len, bool showTrunc = false)
+        {
+            //returns the first LEN codepoints from TEXT.  
+            string ret = "";
+            int count = 0;
+            foreach(char c in text)
+            {
+                if (Char.IsHighSurrogate(c))
+                {
+                    //assume next character is a low surrogate, and don't count this one
+                    ret += c;
+                    continue;
+                }
+                if (Char.IsLowSurrogate(c) && !Char.IsHighSurrogate(ret[ret.Length -1]))
+                {
+                    //this shouldn't happen
+                    continue;
+                }
+                ret += c;
+
+                count++;
+                if(count >= len)
+                {
+                    break;
+                }
+            }
+
+            if (showTrunc)
+            {
+                if(ret.Length < text.Length)
+                {
+                    ret += "...";
+                }
+            }
+            return ret;
         }
 
         public static string NormalizeEmoji(string emoji)
