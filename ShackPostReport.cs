@@ -103,7 +103,7 @@ namespace Shackmojis
         public ShackPostReport()
         {
             DateTime now = DateTime.Now;
-            DateTime yesterday = now.AddDays(-2);  //this should be -1 !!!
+            DateTime yesterday = now.AddDays(-1);
 
             //clear postTime
             for(int x = 0; x < 2; x++)
@@ -285,7 +285,7 @@ namespace Shackmojis
 
 
             int id = MakePost(0, bodyParent);
-            //*
+            /*
             id =  1;
             /*/
             id = GetNewRootPostId(bodyParent,Program.USERNAME);
@@ -298,7 +298,7 @@ namespace Shackmojis
                 minPostDate.ToShortDateString() + " " + minPostDate.ToShortTimeString() + " to " +
                 maxPostDate.ToShortDateString() + " " + maxPostDate.ToShortTimeString() + " " + System.TimeZoneInfo.Local.StandardName +
                 "]s:\n";
-/*
+
                 for (int i = 0;i< modLists.Length; i++)
                 {
                     if(modLists[i].Count < 10 && modLists[i].Count > 0)
@@ -400,7 +400,7 @@ namespace Shackmojis
                     Thread.Sleep(60 * 1000); //wait 60 seconds for PRL reasons 
                 }
 
-*/
+
 
                 //thread summary post:
                 body2 = "Largest thread: " + biggestThreadCount + " replies\n";
@@ -1022,7 +1022,7 @@ namespace Shackmojis
 
         public static int MakePost(int parent, string body, int attempt = 1)
         {
-            //*  Toggle comment - switch the beginning of this line between /* and //* (add or remove first /) to toggle function on or off
+            /*  Toggle comment - switch the beginning of this line between /* and //* (add or remove first /) to toggle function on or off
             return 1;
             /*/
              
