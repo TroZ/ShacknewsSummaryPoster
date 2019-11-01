@@ -11,6 +11,7 @@ namespace Shackmojis
         private int postCount = 0;
         private int replyCount = 0;
         private int charCount = 0;
+        private int shacktagCount = 0;
 
         private int tag_lol_recv_count;
         private int tag_inf_recv_count;
@@ -19,6 +20,8 @@ namespace Shackmojis
         private int tag_aww_recv_count;
         private int tag_wow_recv_count;
         private int tag_wtf_recv_count;
+
+        private int totalThreadSize = 0;
 
         private HashSet<string> emojis = new HashSet<string>();
 
@@ -36,13 +39,17 @@ namespace Shackmojis
         public int Tag_aww_recv_count { get => tag_aww_recv_count; set => tag_aww_recv_count = value; }
         public int Tag_wow_recv_count { get => tag_wow_recv_count; set => tag_wow_recv_count = value; }
         public int Tag_wtf_recv_count { get => tag_wtf_recv_count; set => tag_wtf_recv_count = value; }
+        public int ShacktagCount { get => shacktagCount; set => shacktagCount = value; }
 
-        public void addEmoji(HashSet<string> newEmoji)
+        public void AddEmoji(HashSet<string> newEmoji)
         {
             foreach(string emoji in newEmoji)
             {
                 emojis.Add(emoji);
             }
         }
+
+        public int RootPostCount { get => PostCount - ReplyCount; }
+        public int TotalThreadSize { get => totalThreadSize; set => totalThreadSize = value; }
     }
 }

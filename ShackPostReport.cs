@@ -62,15 +62,20 @@ namespace Shackmojis
         readonly SortedList<Post, Post> postsModNws = new SortedList<Post, Post>(new PostCompareDate());
         readonly String[] ModTypes = { "Interesting", "Tangent", "Stupid", "Political", "NWS" };
 
+
+        int partialListMinSize = 10;
         readonly SortedList<Post, Post> threadChattyness = new SortedList<Post, Post>(new PostCompareChattyness());
 
         readonly Dictionary<string, int> replyChart = new Dictionary<string, int>();
 
-        Post biggestThread;
-        int biggestThreadCount=0;
-        Post mostReplied;
-        Post mostTags;
-        int mostTagsCount;
+        //Post biggestThread;
+        //int biggestThreadCount=0;
+        readonly SortedList<Post, Post> postsBiggestThread = new SortedList<Post, Post>(new PostCompareThreadSize());
+        //Post mostReplied;
+        readonly SortedList<Post, Post> postsMostReplies = new SortedList<Post, Post>(new PostCompareReplyCount());
+        //Post mostTags;
+        //int mostTagsCount;
+        readonly SortedList<Post, Post> postsMostShacktags = new SortedList<Post, Post>(new PostCompareShacktags());
         readonly Dictionary<int, Post> currentThread = new Dictionary<int, Post>();
 
         //static Regex rx = new Regex(@"&#x?[a-fA-F0-9]{2,6};", RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -95,6 +100,7 @@ namespace Shackmojis
         int wowCount = 0;
         int awwCount = 0;
         int wtfCount = 0;
+       
 
 
         static int maxHours = 24 + 20; //normally one day of post then extra 18 hours for a root post at the end to time out 
@@ -286,10 +292,11 @@ namespace Shackmojis
 
             int id = MakePost(0, bodyParent);
             /*
-            id =  1;
+            int id = 1;
             /*/
             id = GetNewRootPostId(bodyParent,Program.USERNAME);
             //*/
+
 
             if (id > 0)
             {
@@ -318,77 +325,9 @@ namespace Shackmojis
                 MakePost(id, body2);
                 Thread.Sleep(60 * 1000); //wait 60 seconds for PRL reasons 
 
-                for (int tagType = 0; tagType < PostCompareTag.TAG_MAX; tagType++)
-                {
 
-                    System.Console.WriteLine("Posting type " + PostCompareTag.GetTagName(tagType));
+                MakeTagPosts(id, tagLists);
 
-                    int totalCount = 0;
-                    switch(tagType){
-                        default:
-                        case PostCompareTag.TAG_LOL: totalCount = lolCount; break;
-                        case PostCompareTag.TAG_INF: totalCount = infCount; break;
-                        case PostCompareTag.TAG_UNF: totalCount = unfCount; break;
-                        case PostCompareTag.TAG_TAG: totalCount = tagCount; break;
-                        case PostCompareTag.TAG_WOW: totalCount = wowCount; break;
-                        case PostCompareTag.TAG_AWW: totalCount = awwCount; break;
-                        case PostCompareTag.TAG_WTF: totalCount = wtfCount; break;
-                    }
-
-                    int count = 3;
-                    if (tagType < PostCompareTag.TAG_WOW && tagType != PostCompareTag.TAG_UNF)
-                    {
-                        count = 5;
-                    }
-                    if(totalCount > 100)
-                    {
-                        count = 5;
-                    }
-
-                    if (count > tagLists[tagType].Count)
-                    {
-                        count = tagLists[tagType].Count;
-                    }
-
-                    string body = "" + totalCount + " " + PostCompareTag.GetTagName(tagType) + "s tagged. ";
-                    body += "Top " + count + " " + PostCompareTag.GetTagName(tagType) + "s:\n\n";
-                    body += PrintMultiLoler(tagLists[tagType], count, tagType);
-                    body += PrintPostList(tagLists[tagType], count, tagType);
-
-                    body += "\n\n\n\n";
-                    //now add top person list
-                    SortedList<Person, Person> personTagged = new SortedList<Person, Person>(new PersonCompareTag(tagType));
-                    foreach(Person P in posterList.Values)
-                    {
-                        if (PersonCompareTag.GetTagCount(P, tagType) > 0)
-                        {
-                            personTagged.Add(P, P);
-                        }
-                    }
-                    int maxp = 10;
-                    if(personTagged.Count < maxp)
-                    {
-                        maxp = personTagged.Count;
-                    }
-                    body += "Top " + maxp + " " + PersonCompareTag.GetTagName(tagType) + "'d posters:\n";
-                    int pp = 0;
-                    foreach(Person P in personTagged.Values)
-                    {
-                        body += "" + PersonCompareTag.GetTagCount(P, tagType) + " - " + P.Name + "\n";
-                        pp++;
-                        if (pp >= maxp) {
-                            break;
-                        }
-                    }
-
-
-
-                    System.Console.WriteLine(body);
-                    System.Console.WriteLine("\n\n");
-                    MakePost(id, body); //post a tag report
-                    Thread.Sleep(60 * 1000); //wait 60 seconds for PRL reasons 
-
-                }
 
 
                 if (DateTime.Now.DayOfWeek == System.DayOfWeek.Sunday ||
@@ -403,26 +342,29 @@ namespace Shackmojis
 
 
                 //thread summary post:
-                body2 = "Largest thread: " + biggestThreadCount + " replies\n";
+                Post biggestThread = postsBiggestThread.Values[0];
+                body2 = "Largest thread: " + biggestThread.ThreadSize + " replies\n";
                 body2 += PrintPost(biggestThread, -1, 100) + "\n\n\n";
 
+                Post mostReplied = postsMostReplies.Values[0];
                 if (mostReplied != biggestThread)
                 {
                     body2 += "Post with the most direct replies (" + mostReplied.ReplyCount + "):\n";
-                    body2 += PrintPost(mostReplied, -1, 100) + "\n\n\n";
+                    body2 += PrintPost(mostReplied, -1, 100) + "\n\n\n\n";
                 }
                 else
                 {
-                    body2 += "That post also has the most direct replies (" + mostReplied.ReplyCount + ")\n\n\n";
+                    body2 += "\nThat post also has the most direct replies (" + mostReplied.ReplyCount + ")\n\n\n\n";
                 }
 
                 //most shack tags
-                body2 += "Post with the most Shack Tags (" + mostTagsCount + "):\n";
-                body2 += PrintPost(mostTags, -1, 100) + "\n\n\n";
+                Post mostShacktags = postsMostShacktags.Values[0];
+                body2 += "Post with the most Shack Tags (" + mostShacktags.Shacktags + "):\n";
+                body2 += PrintPost(mostShacktags, -1, 100) + "\n\n\n";
 
 
                 //chattiestThreads
-                body2 += "Chattiest Threads (with 10 or more posts):\n";
+                body2 += "\nChattiest Threads (with 10 or more posts):\n";
                 for(int c = 0;c<3 && c < threadChattyness.Count; c++)
                 {
                     Post p = threadChattyness.Values[c];
@@ -489,142 +431,624 @@ namespace Shackmojis
                 }
 
 
-
-
-                //reply to chart
+                
+                if(now.Day == 1)
                 {
-                    //first find longest length of 50 most posting shackers
-                    System.Text.StringBuilder buf = new System.Text.StringBuilder();
-                    buf.Append("User V  \\ Replied to>\n/{{");
-                    int len = 0;
-                    int maxusers = 32;
-                    if (users.Count < maxusers) maxusers = users.Count;
-                    for (int l = 0; l < maxusers; l++)
-                    {
-                        if (users.Values[l].Name.Length > len)
-                        {
-                            len = users.Values[l].Name.Length;
-                        }
-                    }
-                    if (len > 20) len = 20;
+                    //do month report
+                    MakeMonthlyReport(id, yesterday, tagLists);
 
-                    string padding = new string(' ', len);
-                    padding += "|";
-
-                    //make column headers
-                    for (int i = 0; i < len; i++)
-                    {
-                        buf.Append(padding);
-                        for (int j = 0; j < maxusers + 1; j++)
-                        {
-                            string name = "<ROOT>";
-                            if (j > 0)
-                            {
-                                name = users.Values[j - 1].Name;
-                            }
-                            if (len - i <= name.Length)
-                            {
-                                buf.Append(' ');
-                                buf.Append(name[name.Length - (len-i)]);
-                            }
-                            else
-                            {
-                                buf.Append("  ");
-                            }
-                        }
-                        buf.Append("\r\n");
-                    }
-                    buf.Append(padding);
-                    buf.Append(new string('-', (maxusers+1) * 2));
-                    buf.Append("\r\n");
-                    //Make rows
-                    for (int i = 0; i < maxusers; i++)
-                    {
-                        string name = users.Values[i].Name;
-                        if (name.Length > 20) name = name.Substring(0, 20);
-                        buf.Append(name.PadLeft(20));
-                        buf.Append('|');
-
-                        for (int j = 0; j < maxusers + 1; j++)
-                        {
-                            name = "";
-                            if (j > 0)
-                            {
-                                name = users.Values[j - 1].Name;
-                            }
-                            name += "|" + users.Values[i].Name;
-                            if (replyChart.ContainsKey(name))
-                            {
-                                int num = replyChart[name];
-                                string val = "  ";
-                                if (num > 0)
-                                {
-                                    if (num > 255 && num < 4096) //should never be above 4096
-                                    {
-                                        byte[] c = new byte[2];
-                                        c[1] = (byte)(num & 0xf);
-                                        c[0] = (byte)(num >> 8);
-                                        
-                                        val = "_[" + System.Convert.ToBase64String(c) + "]_";
-                                    }
-                                    else if (num > 99)
-                                    {
-                                        val = "/["+num.ToString("X")+"]/";
-                                    }
-                                    else
-                                    {
-                                        val = "" + num;
-                                    }
-                                    if (i + 1 == j)
-                                    {
-                                        val = "y{" + val.PadLeft(2) + "}y";
-                                    }
-                                    else
-                                    {
-                                        val = val.PadLeft(2);
-                                    }
-                                }
-                                buf.Append(val);
-                            }
-                            else
-                            {
-                                buf.Append("  ");
-                            }
-                        }
-                        buf.Append("\r\n");
-                    }
-                    buf.Append("}}/");
-
-                    System.Console.WriteLine(buf.ToString());
-                    System.Console.WriteLine("\n\n");
                 }
+                else if(now.DayOfWeek == System.DayOfWeek.Sunday)
+                {
+                    //do week reply to chart (if this is not the first of the month as we will do a month chart then)
+                    MakeWeeklyChart(id, yesterday);
+                }
+
             }
 
             System.Console.WriteLine("Done!");
         }
 
-        private string GetEmojiReport()
+        private void MakeTagPosts(int id, SortedList<Post, Post>[] tagLists, bool month = false)
         {
+            for (int tagType = 0; tagType < PostCompareTag.TAG_MAX; tagType++)
+            {
+
+                System.Console.WriteLine("Posting type " + PostCompareTag.GetTagName(tagType));
+
+                int count = 3;
+                int maxp = 10;
+                int maxLen = 700;
+                if (month)
+                {
+                    count = 10;
+                    maxp = 25;
+                    maxLen = 250;
+                }
+
+                int totalCount = 0;
+                switch (tagType)
+                {
+                    default:
+                    case PostCompareTag.TAG_LOL: totalCount = lolCount; break;
+                    case PostCompareTag.TAG_INF: totalCount = infCount; break;
+                    case PostCompareTag.TAG_UNF: totalCount = unfCount; break;
+                    case PostCompareTag.TAG_TAG: totalCount = tagCount; break;
+                    case PostCompareTag.TAG_WOW: totalCount = wowCount; break;
+                    case PostCompareTag.TAG_AWW: totalCount = awwCount; break;
+                    case PostCompareTag.TAG_WTF: totalCount = wtfCount; break;
+                }
+
+                
+                if (tagType < PostCompareTag.TAG_WOW && tagType != PostCompareTag.TAG_UNF && count < 5)
+                {
+                    count = 5;
+                }
+                if (totalCount > 100 && count < 5)
+                {
+                    count = 5;
+                }
+
+                if (count > tagLists[tagType].Count)
+                {
+                    count = tagLists[tagType].Count;
+                }
+
+                string body = "" + totalCount + " " + PostCompareTag.GetTagName(tagType) + "s tagged. ";
+                body += "Top " + count + " " + PostCompareTag.GetTagName(tagType) + "s:\n\n";
+                body += PrintMultiLoler(tagLists[tagType], count, tagType);
+                body += PrintPostList(tagLists[tagType], count, tagType, maxLen);
+
+                body += "\n\n\n\n";
+                //now add top person list
+                SortedList<Person, Person> personTagged = new SortedList<Person, Person>(new PersonCompareTag(tagType));
+                foreach (Person P in posterList.Values)
+                {
+                    if (PersonCompareTag.GetTagCount(P, tagType) > 0)
+                    {
+                        personTagged.Add(P, P);
+                    }
+                }
+                
+                if (personTagged.Count < maxp)
+                {
+                    maxp = personTagged.Count;
+                }
+
+                body += "Top " + maxp + " " + PersonCompareTag.GetTagName(tagType) + "'d posters:\n";
+                int pp = 0;
+                foreach (Person P in personTagged.Values)
+                {
+                    body += "" + PersonCompareTag.GetTagCount(P, tagType) + " - " + P.Name + "\n";
+                    pp++;
+                    if (pp >= maxp)
+                    {
+                        break;
+                    }
+                }
+
+
+
+                System.Console.WriteLine(body);
+                System.Console.WriteLine("\n\n");
+                MakePost(id, body); //post a tag report
+                Thread.Sleep(60 * 1000); //wait 60 seconds for PRL reasons 
+
+            }
+        }
+
+        private string GetEmojiReport(bool month = false)
+        {
+            int max = 10;
+            int size = 15;
+            if (month)
+            {
+                max = 25;
+                size = 30;
+            }
             string body = "Posts with most emoji:\nPost, Number of Emoji, Unique Emoji, Emojis\n/{{";
-            for (int i = 0; i < 10 && i < posts.Count; i++)
+            for (int i = 0; i < max && i < posts.Count; i++)
             {
                 Post p = posts.Values[i];
                 body += "s[s[https://www.shacknews.com/chatty?id=" + p.Id + "#item_" + p.Id + "]s]s , " + (""+p.NumEmoji).PadLeft(2) + ", " + (""+p.UniqueEmoji).PadLeft(2) + ", " + GetFirstCodePoints(p.Emojis,10,true) + "\r\n";
             }
             body += "}}/\n\nPosters using the most emoji:\nName, Number of Emoji, Unique Emoji, Emojis\n/{{";
-            for (int i = 0; i < 10 && i < posters.Count; i++)
+            for (int i = 0; i < max && i < posters.Count; i++)
             {
                 Person per = posters.Values[i];
-                body += "" + (per.Name).PadRight(20) + ", " + (""+per.EmojiCount).PadLeft(2) + ", " + (""+per.UniqueEmoji).PadLeft(2) + ", " + GetFirstCodePoints(per.Emojis, 15, true) + "\r\n";
+                body += "" + (per.Name).PadRight(20) + ", " + (""+per.EmojiCount).PadLeft(3) + ", " + (""+per.UniqueEmoji).PadLeft(3) + ", " + GetFirstCodePoints(per.Emojis, size, true) + "\r\n";
             }
             body += "}}/\n";
             return body;
+        }
+
+
+        private void MakeMonthlyReport(int rootId, DateTime yesterday, SortedList<Post, Post>[] tagLists)
+        {
+            int userListSize = 50;
+            int postListSize = 10;
+
+            System.Console.WriteLine("\nMaking report for the month\n");
+
+            //gather data
+            DateTime day = yesterday.AddDays(-1);
+                       
+            while (day.Month == yesterday.Month)
+            {
+                Thread.Sleep(10 * 1000); //sleep 10 seconds to give API a rest...
+
+                System.Console.WriteLine("\nGetting data for: " + day);
+
+                dynamic response = GetDayRootPosts(day);
+
+                GetThreadRootTimes(response);
+
+                if (response != null && response.rootPosts != null)
+                {
+                    int c = response.rootPosts.Count;
+                    System.Console.WriteLine("Thread Count: " + c);
+                }
+
+                GetThreads(response); //this does most of the work, getting emoji counts, and also make the lists of top tagged posts
+
+                day = day.AddDays(-1);
+            } 
+
+
+            posters.Clear();
+            foreach (Person pp in posterList.Values)
+            {
+                posters.Add(pp, pp); //makes a sorted list by number of emojis
+            }
+
+
+
+            //make "root" post
+            string body = SUMMARY_THREAD_START + "the month of _[";
+            switch (yesterday.Month)
+            {
+                case 1: body += "⛄l[JANUARY]l⛄"; break;
+                case 2: body += "💝p[FEBRUARY]p💝"; break;
+                case 3: body += "☘g{MARCH}g☘"; break;
+                case 4: body += "☔b{APRIL}b☔"; break;
+                case 5: body += "🌸p[MAY]p🌸"; break;
+                case 6: body += "🌞y{JUNE}y🌞"; break;
+                case 7: body += "🍦r{JULY}r🍦"; break;
+                case 8: body += "✎y{AUGUST}y✏️"; break;
+                case 9: body += "🍎r{SEPTEMBER}r🍎"; break;
+                case 10: body += "🎃n[OCTOBER]n🎃"; break;
+                case 11: body += "🍂e[NOVEMBER]e🍂"; break;
+                case 12: body += "❄️b{DECEMBER}b❄️"; break;
+            }
+            body += "]_\n";
+            body += "b[" + rootCount + "]b _[e[Root Posts]e]_, b[" + replyCount + "]b /[l[Replies]l]/";
+            if (interestingCount > 0)
+            {
+                body += ", b[" + interestingCount + "]b b{interesting}b posts";
+            }
+            //if (ontopicCount > 0) { //default is ontopic, so we don't really need to print the number
+            //    bodyParent += ", " + ontopicCount + " ontopic posts";
+            //}
+            if (tangentCount > 0)
+            {
+                body += ", b[" + tangentCount + "]b y{tangent}y posts";
+            }
+            if (stupidCount > 0)
+            {
+                body += ", b[" + stupidCount + "]b g{stupid}g posts";
+            }
+            if (politicalCount > 0)
+            {
+                body += ", b[" + politicalCount + "]b n[political]n posts";
+            }
+            if (nwsCount > 0)
+            {
+                body += ", b[" + nwsCount + "]b r{nws}r posts";
+            }
+            body += "\ns[Roots posts from " +
+                minPostDate.ToShortDateString() + " " + minPostDate.ToShortTimeString() + " to " +
+                maxPostDate.ToShortDateString() + " " + maxPostDate.ToShortTimeString() + " " + System.TimeZoneInfo.Local.StandardName +
+                ", summary threads not counted]s";
+            body += "\nIn reply:";
+            System.Console.WriteLine(body);
+            System.Console.WriteLine("\n\n");
+            int id = MakePost(rootId, body);
+            Thread.Sleep(60 * 1000); //wait 60 seconds for PRL reasons
+
+/*
+            //Get reply ID
+            id = GetNewThreadPostId(rootId, body, Program.USERNAME);
+*/
+            if(id < 10)
+            {
+                //unable to find post, just reply to the day's post instead
+                id = rootId;
+            }
+
+            //make child posts
+            //MakeTagPosts(id, tagLists, true);
+
+            body = "Largest Threads:\n";
+            for (int c = 0; c < postListSize && c < postsBiggestThread.Count; c++)
+            {
+                Post p = postsBiggestThread.Values[c];
+                body += String.Format("{0} posts in thread ", p.ThreadSize);
+                body += PrintPost(p, -1, 100) + "\n\n\n";
+            }
+            body += "\n\n";
+
+            body += "Most Replies:\n";
+            for (int c = 0; c < postListSize && c < postsMostReplies.Count; c++)
+            {
+                Post p = postsMostReplies.Values[c];
+                body += String.Format("{0} replies ", p.ReplyCount);
+                body += PrintPost(p, -1, 100) + "\n\n\n";
+            }
+            body += "\n\n";
+
+            System.Console.WriteLine(body);
+            System.Console.WriteLine("\n\n");
+            MakePost(id, body);
+            Thread.Sleep(60 * 1000); //wait 60 seconds for PRL reasons
+
+
+            body = "Chattiest Threads (with 10 or more posts):\n";
+            for (int c = 0; c < postListSize && c < threadChattyness.Count; c++)
+            {
+                Post p = threadChattyness.Values[c];
+                body += String.Format("{0:0.0} words per post, started ", p.ThreadChattyness);
+                body += PrintPost(p, -1, 100) + "\n\n\n";
+            }
+
+            System.Console.WriteLine(body);
+            System.Console.WriteLine("\n\n");
+            MakePost(id, body);
+            Thread.Sleep(60 * 1000); //wait 60 seconds for PRL reasons
+
+
+            //most shacktagged post
+            body = "Post with the most Shack Tags:\n";
+            for (int c = 0; c < postListSize && c < postsMostShacktags.Count; c++)
+            {
+                Post p = postsMostShacktags.Values[c];
+                body += String.Format("{0} shacktags ", p.Shacktags);
+                body += PrintPost(p, -1, 100) + "\n\n\n";
+            }
+
+            //most shacktag using people
+            body += "\n\nUsers using the most Shacktags:\n/{{";
+            {
+                SortedList<Person, Person> usersShacktags = new SortedList<Person, Person>(new PersonCompareShacktags());
+                foreach (Person user in posters.Values)
+                {
+                    if (user.ShacktagCount > 0)
+                    {
+                        usersShacktags.Add(user, user);
+                    }
+                }
+                for (int i = 0; i < userListSize && i < usersShacktags.Count; i++)
+                {
+                    Person u = usersShacktags.Values[i];
+                    body += "" + ("" + u.ShacktagCount).PadLeft(3) + " " + u.Name + "\r\n";
+                }
+                body += "}}/\n\n";
+            }
+            System.Console.WriteLine(body);
+            System.Console.WriteLine("\n\n");
+            MakePost(id, body);
+            Thread.Sleep(60 * 1000); //wait 60 seconds for PRL reasons
+
+
+            //emoji
+            body = GetEmojiReport(true);
+            System.Console.WriteLine(body);
+            System.Console.WriteLine("\n\n");
+            MakePost(id, body);
+            Thread.Sleep(60 * 1000); //wait 60 seconds for PRL reasons
+
+
+            //top posters by total posts
+            SortedList<Person, Person> users = new SortedList<Person, Person>(new PersonComparePost());
+            SortedList<Person, Person> usersRoot = new SortedList<Person, Person>(new PersonCompareThreadStart());
+            SortedList<Person, Person> usersChars = new SortedList<Person, Person>(new PersonCompareCharacters());
+            foreach (Person user in posters.Values)
+            {
+                users.Add(user, user);
+                usersChars.Add(user, user);
+                if(user.RootPostCount > 0)
+                {
+                    usersRoot.Add(user, user);
+                }
+            }
+            body = "Top Posters by total posts:\nTotal Posts, Root Posts, Replies, Name\n/{{";
+            for (int i = 0; i < userListSize && i < users.Count; i++)
+            {
+                Person u = users.Values[i];
+                body += "" + ("" + u.PostCount).PadLeft(3) + ", " + ("" + (u.RootPostCount)).PadLeft(3) + ", " +
+                               ("" + u.ReplyCount).PadLeft(3) + ", " + u.Name + "\r\n";
+            }
+            body += "}}/\n\n";
+
+            //unique
+            body += "Unique Posters: " + posterList.Count + "\n\n\n";
+
+            //top posters by thread starters
+            body += "Top Posters by threads started:\nThreads started, # Posts in threads started, Name\n/{{";
+            for (int i = 0; i < userListSize && i < usersRoot.Count; i++)
+            {
+                Person u = usersRoot.Values[i];
+                body += "" + ("" + u.RootPostCount).PadLeft(3) + ", " + ("" + (u.TotalThreadSize)).PadLeft(5) + ", " +
+                                u.Name + "\r\n";
+            }
+            body += "}}/\n\n";
+
+            //top posters by characters
+            body += "Top Posters by characters posted:\nCharacters, Name\n/{{";
+            for (int i = 0; i < userListSize && i < usersChars.Count; i++)
+            {
+                Person u = usersChars.Values[i];
+                body += "" + ("" + u.CharCount).PadLeft(6) + ", " + u.Name + "\r\n";
+            }
+            body += "}}/\n\n";
+
+            System.Console.WriteLine(body);
+            System.Console.WriteLine("\n\n");
+            MakePost(id, body);
+            Thread.Sleep(60 * 1000); //wait 60 seconds for PRL reasons
+
+
+
+            body = MakeReplyToChart(users, true);
+            System.Console.WriteLine(body);
+            System.Console.WriteLine("\n\n");
+            MakePost(id, body);
+            //Thread.Sleep(60 * 1000); //wait 60 seconds for PRL reasons
+
+        }
+
+        private void MakeWeeklyChart(int rootId, DateTime yesterday)
+        {
+            //should be called on a Sunday to make a chart for previous Sunday to Saturday
+
+            System.Console.WriteLine("\nMaking report for the week\n");
+
+            //gather data
+            DateTime day = yesterday.AddDays(-1);
+
+            for(int i=0;i<6;i++)  //already have data for yesterday, need 6 more days for a week.
+            {
+                Thread.Sleep(10 * 1000); //sleep 10 seconds to give API a rest...
+
+                System.Console.WriteLine("\nGetting data for: " + day);
+
+                dynamic response = GetDayRootPosts(day);
+
+                GetThreadRootTimes(response);
+
+                if (response != null && response.rootPosts != null)
+                {
+                    int c = response.rootPosts.Count;
+                    System.Console.WriteLine("Thread Count: " + c);
+                }
+
+                GetThreads(response); //this does most of the work, getting emoji counts, and also make the lists of top tagged posts
+
+                day = day.AddDays(-1);
+            }
+
+            //make top posters list
+            SortedList<Person, Person> users = new SortedList<Person, Person>(new PersonComparePost());
+            foreach (Person user in posters.Values)
+            {
+                users.Add(user, user);
+            }
+
+
+            string body = MakeReplyToChart(users);
+            System.Console.WriteLine(body);
+            System.Console.WriteLine("\n\n");
+            MakePost(rootId, body);
+        }
+
+        private string MakeReplyToChart(SortedList<Person, Person> users, bool month = false)
+        {
+            //reply to chart - how the top 40 posters (by post count) replied to each other
+            {
+                //first find longest length of 50 most posting shackers
+                System.Text.StringBuilder buf = new System.Text.StringBuilder();
+                //buf.Append("User V  \\ Replied to>\n/{{");
+                int len = 10;
+                int maxusers = 40;
+                /*
+                if (users.Count < maxusers) maxusers = users.Count;
+                for (int l = 0; l < maxusers; l++)
+                {
+                    if (users.Values[l].Name.Length > len)
+                    {
+                        len = users.Values[l].Name.Length;
+                    }
+                }
+                */
+                //limit it to 11 characters if more than that (the above probably isn't even needed as it will likely be above 11)
+                if (len > 10) len = 10;
+
+                string padding = new string(' ', len);
+                padding += "|";
+
+                //make column headers
+                for (int i = 0; i < len; i++)
+                {
+                    if (i < 7)
+                    {
+                        if (i == 0)
+                        {
+                            buf.Append(" TOP USER".PadRight(len));
+                        }
+                        else if(i == 1)
+                        {
+                            buf.Append(" MESSAGES".PadRight(len));
+                        }
+                        else if (i == 2)
+                        {
+                            if (month)
+                            {
+                                buf.Append("THIS MONTH".PadRight(len));
+                            }
+                            else
+                            {
+                                buf.Append("THIS  WEEK".PadRight(len));
+                            }
+                        }
+                        else if(i == 3)
+                        {
+                            buf.Append(" ".PadRight(len));
+                        }
+                        else if(i == 4)
+                        {
+                            buf.Append("User -->".PadLeft(len));
+                        }
+                        else if(i == 5)
+                        {
+                            buf.Append("Replied to".PadRight(len));
+                        }
+                        else
+                        {
+                            buf.Append("below user".PadRight(len));
+                        }
+                        buf.Append("|");
+                    }
+                    else
+                    {
+                        buf.Append(padding);
+                    }
+                    for (int j = 0; j < maxusers; j++)
+                    {
+                        string name = users.Values[j].Name;
+                        if (len <= name.Length)
+                        {
+                            buf.Append(' ');
+                            buf.Append(name[ i ]);
+                        }
+                        else if( i >= len - name.Length)
+                        {
+                            buf.Append(' ');
+                            buf.Append(name[i - (len - name.Length)]);
+                        }
+                        else
+                        {
+                            buf.Append("  ");
+                        }
+                    }
+                    buf.Append("\r\n");
+                }
+                //separator
+                buf.Append(padding);
+                buf.Append(new string('-', (maxusers) * 2));
+                buf.Append("\r\n");
+                //Make rows
+                for (int i = 0; i < maxusers + 1; i++)
+                {
+                    string name = "";
+                    if (i == 0)
+                    {
+                        name = "NEW POST";
+                    }
+                    else
+                    {
+                        name = users.Values[i-1].Name;
+                    }
+                    if (name.Length > len) name = name.Substring(0, len);
+                    buf.Append(name.PadLeft(len));
+                    buf.Append('|');
+
+                    for (int j = 0; j < maxusers ; j++)
+                    {
+                        name = "";
+                        if (i > 0)
+                        {
+                            name = users.Values[i].Name;
+                        }
+                        name += "|" + users.Values[j].Name;
+                        if (replyChart.ContainsKey(name))
+                        {
+                            int num = replyChart[name];
+                            string val = "  ";
+                            if (num > 0)
+                            {
+                                if(num > 4096)
+                                {
+                                    val = "_[**]_";
+                                }
+                                else if (num > 255 && num < 4096) //should never be above 4096
+                                {
+                                    byte[] c = new byte[2];
+                                    c[1] = (byte)(num & 0xf);
+                                    c[0] = (byte)(num >> 8);
+
+                                    val = "_[/[" + Base64.b64ConvertInt(num,2) + "]/]_";
+                                }
+                                else if (num > 99)
+                                {
+                                    val = "_[" + num.ToString("X") + "]_";
+                                }
+                                else
+                                {
+                                    val = "" + num;
+                                }
+
+                                if (i == j +1)
+                                {
+                                    val = "y{" + val.PadLeft(2) + "}y";
+                                }
+                                else
+                                {
+                                    val = val.PadLeft(2);
+                                }
+                            }
+                            buf.Append(val);
+                        }
+                        else
+                        {
+                            buf.Append("  ");
+                        }
+                    }
+                    buf.Append("\r\n");
+                }
+                buf.Append("}}/");
+
+                //try some cleanup
+                int size = buf.Length;
+                do
+                {
+                    size = buf.Length;
+                    buf.Replace("  \r\n", "\r\n");
+                } while (buf.Length < size);
+
+                if(buf.Length < 4950)
+                {
+                    buf.Append("\n >99 = _[HEX Val]_, > 255 = _[/[Base 64 Val]/]_");
+                }
+                else if(buf.Length < 4975)
+                {
+                    buf.Append("\n_[HEX]_ _[/[Base64]/]_");
+                }
+                if (buf.Length < 4980)
+                {
+                    buf.Append(", y{Reply to Self}y");
+                }
+
+
+                System.Console.WriteLine(buf.ToString());
+                System.Console.WriteLine("\n\n");
+                return buf.ToString();
+            }
         }
 
         public static int GetNewRootPostId(string body, string username)
         {
             //this isn't a good way to do this. Only works for root posts (as that is all we request).
             //won't work if body has shacktags (in the first line of the post (although we try to work around that, assuming the start isn't in a tag))
+            //well, we can attempt to reverse all shacktags now, but that isn't implemented here yet.
 
             int pos = body.Length;
             int pos2 = body.IndexOf('\n');
@@ -675,6 +1099,65 @@ namespace Shackmojis
             return 0;
         }
 
+        public static int GetNewThreadPostId(int threadID, string body, string username)
+        {
+            //this isn't a good way to do this. 
+            //won't work if body has shacktags (in the first line of the post (although we try to work around that, assuming the start isn't in a tag))
+            //well, we can attempt to reverse all shacktags now, but that isn't implemented here yet.
+
+            int pos = body.Length;
+            int pos2 = body.IndexOf('\n');
+            if (pos2 > -1)
+            {
+                pos = pos2;
+            }
+            //attempt to deal with shacktags, but less accurate
+            pos2 = body.IndexOf("{");
+            if (pos2 > -1 && pos2 < pos)
+            {
+                pos = pos2 - 1;
+            }
+            pos2 = body.IndexOf("[");
+            if (pos2 > -1 && pos2 < pos)
+            {
+                pos = pos2 - 1;
+            }
+
+            string text = body.Substring(0, pos);
+            for (int i = 0; i < 3; i++)
+            {
+
+                Thread.Sleep(10 * 1000);//wait 10 seconds for post to process
+
+                string url = Program.APIURL + "getThread?id=" + threadID;
+                dynamic thread = GetJSON(url);
+
+                //System.Console.WriteLine(thread.ToString());
+                if (thread != null)
+                {
+                    if (thread.threads != null && thread.threads[0].posts != null)
+                    {
+                        foreach (dynamic post in thread.threads[0].posts)
+                        {
+                            if (post != null)
+                            {
+                                int id = post.id;
+                                string name = post.author;
+                                string pbody = post.body;
+
+                                if (name.ToLower().Equals(username.ToLower()) && pbody.StartsWith(text))
+                                {
+                                    //this seems to be the post we are looking for
+                                    return id;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            return 0;
+        }
+
         public static string PrintMultiLoler(SortedList<Post, Post> list, int num, int type)
         {
             string names = "";
@@ -702,14 +1185,14 @@ namespace Shackmojis
             return names;
         }
 
-        public static string PrintPostList(SortedList<Post, Post> list, int num, int type)
+        public static string PrintPostList(SortedList<Post, Post> list, int num, int type, int maxLen = 700)
         {
             //makes a list of top <num> posts from the list <list> of tag type <type>
             string ret = "";
             for (int i = 0; i < num && i < list.Count; i++)
             {
                 Post p = list.Values[i];
-                ret += PrintPost(p, type);
+                ret += PrintPost(p, type, maxLen);
                 ret += "\n\n\n";
             }
             return ret;
@@ -721,7 +1204,13 @@ namespace Shackmojis
             string ret = "";
             if (type >= 0)
             {
-                ret += PostCompareTag.GetTagCount(p, type) + " " + PostCompareTag.GetTagName(type) + "s ";
+                switch (type)
+                {
+                    default:
+                        ret += PostCompareTag.GetTagCount(p, type) + " " + PostCompareTag.GetTagName(type) + "s ";
+                        break;
+                }
+                
             }
             ret += "By y{" + p.Author + "}y s[s[https://www.shacknews.com/chatty?id=" + p.Id + "#item_" + p.Id + "]s]s\n";
 
@@ -740,13 +1229,25 @@ namespace Shackmojis
 
             //limit length
             bool trimmed = false;
-            if (text.Length > (maxLen+25))
-            {
-                text = text.Substring(0, maxLen) ;
-                trimmed = true;
-            }
+            int trimlen = maxLen;
+            string result = "";
+            do {
+                string trimtext = text;
+                if (text.Length > (maxLen + 25) && trimlen < text.Length)
+                {
+                    trimtext = text.Substring(0, trimlen);
+                    trimmed = true;
+                }
+                else
+                {
+                    trimmed = false;
+                }
 
-            ret += CleanUpPost(text);
+                result = CleanUpPost(trimtext);
+
+                trimlen += 25;//if we fid we trimmed too short, retry at this size
+            } while (result.Length < maxLen - 25 && trimlen < text.Length);
+            ret += result;
 
             if (trimmed)
             {
@@ -779,7 +1280,7 @@ namespace Shackmojis
             string ret = "";
 
             while (i < cmt.Length) {
-                if (cmt[i] == '<') {
+                if (cmt[i] == '<' && (i+1) < cmt.Length) {
                     i++;
                     if (cmt[i] != '/')
                     {
@@ -856,6 +1357,8 @@ namespace Shackmojis
                                             stack.Push("]q");
                                             ret += "q[";
                                             break;
+                                        case "jt_wtf242"://custom grey text just for him
+                                            break;
                                     }
                                 }
                                 else
@@ -913,7 +1416,10 @@ namespace Shackmojis
                 }
                 else
                 {
-                    ret += cmt[i];
+                    if (cmt[i] != '<')
+                    {
+                        ret += cmt[i];
+                    }
                     i++;
                 }
             }
@@ -937,7 +1443,7 @@ namespace Shackmojis
 
         public static string EncodeEmoji(String text)
         {
-            //not used - this was written that emoji would need to be converted to HTML Entities to be posted, but apparently the API expects UTF-8/16 
+            //not used - this was written assuming that emoji would need to be converted to HTML Entities to be posted, but apparently the API expects UTF-8/16 
             //(not sure if the web request is doing a conversion) and handles the conversion
             string ret = "";
 
@@ -994,16 +1500,34 @@ namespace Shackmojis
 
         public static dynamic GetJSON(string url)
         {
-            //returns an object representing the JSON object returned from the provided URL
-            var httpWebRequest = (HttpWebRequest)WebRequest.Create(url);
-            httpWebRequest.AutomaticDecompression = DecompressionMethods.Deflate | DecompressionMethods.GZip;
-            httpWebRequest.Method = "GET";
+            int count = 0;
+            while (count < 3)
+            {
+                try
+                {
+                    //returns an object representing the JSON object returned from the provided URL
+                    var httpWebRequest = (HttpWebRequest)WebRequest.Create(url);
+                    httpWebRequest.AutomaticDecompression = DecompressionMethods.Deflate | DecompressionMethods.GZip;
+                    httpWebRequest.Method = "GET";
 
-            var httpResponse = (HttpWebResponse)httpWebRequest.GetResponse();
-            using var streamReader = new StreamReader(httpResponse.GetResponseStream());
-            var responseText = streamReader.ReadToEnd();
+                    var httpResponse = (HttpWebResponse)httpWebRequest.GetResponse();
+                    using var streamReader = new StreamReader(httpResponse.GetResponseStream());
+                    var responseText = streamReader.ReadToEnd();
 
-            return JsonConvert.DeserializeObject(responseText);
+                    return JsonConvert.DeserializeObject(responseText);
+                }
+                catch (System.Net.WebException e)
+                {
+                    System.Console.WriteLine(e);
+                    if (count == 2)
+                    {
+                        throw e;
+                    }
+                    Thread.Sleep(10 * 1000);
+                }
+                count++;
+            }
+            return null;
         }
 
         public static string GetUrl(string url)
@@ -1108,7 +1632,7 @@ namespace Shackmojis
             //if past a list of root posts, requests the full thread for each post and processses all the posts
             //it automatically delays 100ms between each request
             //it does skip the daily thread summary thread, so that it doesn't count emoji in the emoji summary post (this may cause it to skip some lol-tagged posts though)
-            rootCount = 0;
+           
             if (root != null && root.rootPosts != null)
             {
                 foreach (dynamic post in root.rootPosts)
@@ -1155,14 +1679,35 @@ namespace Shackmojis
                 }
             }
 
-            //calc thread stats
-            if(currentThread.Count > biggestThreadCount)
+            int wordCount = 0;
+            Post root = null;
+            foreach (Post post in currentThread.Values)
             {
-                biggestThreadCount = currentThread.Count;
-                biggestThread = currentThread[id];
+                if (post.ParentId == 0)
+                {
+                    root = post;
+                }
+                wordCount += post.WordCount;
+            }
+
+            root.ThreadSize = currentThread.Count;
+            //calc thread stats
+            if (currentThread.Count > 0 && (postsBiggestThread.Count < partialListMinSize || postsBiggestThread.Values[partialListMinSize-1].ThreadSize < currentThread.Count))
+            {
+                postsBiggestThread.Add(root, root);
+            }
+            //add thread size to root author
+            Person rootAuth = posterList[root.Author];
+            if (rootAuth != null)
+            {
+                rootAuth.TotalThreadSize += root.ThreadSize;
+            }
+            else
+            {
+                Console.WriteLine("That shouldn't have happened!");
             }
             //calc num replies
-            foreach(Post child in currentThread.Values)
+            foreach (Post child in currentThread.Values)
             {
                 if(child.ParentId != 0)
                 {
@@ -1176,26 +1721,21 @@ namespace Shackmojis
             //set max replies
             foreach (Post post in currentThread.Values)
             {
-                if(mostReplied == null || post.ReplyCount > mostReplied.ReplyCount)
+                if(post.ReplyCount > 0 && (postsMostReplies.Count < partialListMinSize || postsMostReplies.Values[partialListMinSize-1].ReplyCount < post.ReplyCount))
                 {
-                    mostReplied = post;
+                    postsMostReplies.Add(post, post);
                 }
             }
             //chattyness
-            int wordCount = 0;
-            Post root = null;
-            foreach (Post post in currentThread.Values)
-            {
-                if(post.ParentId == 0)
-                {
-                    root = post;
-                }
-                wordCount += post.WordCount;
-            }
+            
+            
             if (root != null && currentThread.Count > 9)
             {
                 root.ThreadChattyness = wordCount / (double)currentThread.Count;
-                threadChattyness.Add(root,root);
+                if (threadChattyness.Count < partialListMinSize || root.ThreadChattyness > threadChattyness.Values[partialListMinSize-1].ThreadChattyness)
+                {
+                    threadChattyness.Add(root, root);
+                }
             }
 
 
@@ -1283,7 +1823,7 @@ namespace Shackmojis
                     posts.Add(pt, pt);
 
                     //add emoji from post to person
-                    p.addEmoji(emojis);
+                    p.AddEmoji(emojis);
                 }
 
                 //do lols
@@ -1330,12 +1870,12 @@ namespace Shackmojis
                     }
                 }
 
-                int shacktags = CountShackTags(pt.Text);
-                if(shacktags > mostTagsCount)
+                pt.Shacktags = CountShackTags(pt.Text);
+                if (pt.Shacktags > 0 && (postsMostShacktags.Count < partialListMinSize || postsMostShacktags.Values[partialListMinSize - 1].Shacktags < pt.Shacktags))
                 {
-                    mostTags = pt;
-                    mostTagsCount = shacktags;
+                    postsMostShacktags.Add(pt, pt);
                 }
+                p.ShacktagCount += pt.Shacktags;
 
 
                 //add to date array
@@ -1423,14 +1963,14 @@ namespace Shackmojis
             return count;
         }
 
-        public static void AddLol(SortedList<Post, Post> list, Post post, int type)
+        public void AddLol(SortedList<Post, Post> list, Post post, int type)
         {
             //adds a post to a lol-tag list if it should be added (it is one of the top five so far for that list)
-            if (list.Count < 5)
+            if (list.Count < partialListMinSize)
             {
                 list.Add(post, post);
             }
-            else if (PostCompareTag.GetTagCount(list.Values[4], type) < PostCompareTag.GetTagCount(post, type))
+            else if (PostCompareTag.GetTagCount(list.Values[partialListMinSize-1], type) < PostCompareTag.GetTagCount(post, type))
             {
                 list.Add(post, post);
             }

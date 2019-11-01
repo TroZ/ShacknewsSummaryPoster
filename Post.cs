@@ -7,29 +7,31 @@ namespace Shackmojis
     class Post
     {
 
-        private int id;
-        private string author;
+        private int id = 0;
+        private string author = "";
         private DateTime postDate;
-        private int parentId;
-        private int numEmoji;
-        private int uniqueEmoji;
-        private string modCategory;
+        private int parentId = 0;
+        private int numEmoji = 0;
+        private int uniqueEmoji = 0;
+        private string modCategory = "";
         private int replyCount = 0;
+        private int threadSize = 0;
+        private int shacktags = 0;
 
-        private string text;
+        private string text = "";
 
-        private int tag_lol;
-        private int tag_inf;
-        private int tag_unf;
-        private int tag_tag;
-        private int tag_aww;
-        private int tag_wow;
-        private int tag_wtf;
+        private int tag_lol = 0;
+        private int tag_inf = 0;
+        private int tag_unf = 0;
+        private int tag_tag = 0;
+        private int tag_aww = 0;
+        private int tag_wow = 0;
+        private int tag_wtf = 0;
 
-        private string emojis;
+        private string emojis = "";
 
-        private int wordCount;
-        private double threadChattyness;
+        private int wordCount = 0;
+        private double threadChattyness = 0.0;
 
         public int Id { get => id; set => id = value; }
         public string Author { get => author; set => author = value; }
@@ -51,5 +53,7 @@ namespace Shackmojis
         public int ParentId { get => parentId; set => parentId = value; }
         public int WordCount { get => wordCount; set => wordCount = value; }
         public double ThreadChattyness { get => threadChattyness; set => threadChattyness = value; }
+        public int ThreadSize { get => threadSize; set => threadSize = value; }
+        public int Shacktags { get => shacktags; set => shacktags = value; }
     }
 }
