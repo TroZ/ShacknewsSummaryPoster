@@ -110,6 +110,8 @@ namespace Shackmojis
         {
             DateTime now = DateTime.Now;
             DateTime yesterday = now.AddDays(-1);
+            yesterday = yesterday.AddHours(-1);
+            yesterday.AddHours(4);
 
             //clear postTime
             for(int x = 0; x < 2; x++)
@@ -432,7 +434,7 @@ namespace Shackmojis
 
 
                 
-                if(now.Day == 1)
+                if (now.Day == 1)
                 {
                     //do month report
                     MakeMonthlyReport(id, yesterday, tagLists);
@@ -544,7 +546,7 @@ namespace Shackmojis
             if (month)
             {
                 max = 25;
-                size = 30;
+                size = 20;
             }
             string body = "Posts with most emoji:\nPost, Number of Emoji, Unique Emoji, Emojis\n/{{";
             for (int i = 0; i < max && i < posts.Count; i++)
@@ -552,7 +554,7 @@ namespace Shackmojis
                 Post p = posts.Values[i];
                 body += "s[s[https://www.shacknews.com/chatty?id=" + p.Id + "#item_" + p.Id + "]s]s , " + (""+p.NumEmoji).PadLeft(2) + ", " + (""+p.UniqueEmoji).PadLeft(2) + ", " + GetFirstCodePoints(p.Emojis,10,true) + "\r\n";
             }
-            body += "}}/\n\nPosters using the most emoji:\nName, Number of Emoji, Unique Emoji, Emojis\n/{{";
+            body += "}}/\n\n\nPosters using the most emoji:\nName, Number of Emoji, Unique Emoji, Emojis\n/{{";
             for (int i = 0; i < max && i < posters.Count; i++)
             {
                 Person per = posters.Values[i];
@@ -600,7 +602,6 @@ namespace Shackmojis
             {
                 posters.Add(pp, pp); //makes a sorted list by number of emojis
             }
-
 
 
             //make "root" post
@@ -655,10 +656,10 @@ namespace Shackmojis
             int id = MakePost(rootId, body);
             Thread.Sleep(60 * 1000); //wait 60 seconds for PRL reasons
 
-/*
+
             //Get reply ID
             id = GetNewThreadPostId(rootId, body, Program.USERNAME);
-*/
+
             if(id < 10)
             {
                 //unable to find post, just reply to the day's post instead
@@ -666,7 +667,9 @@ namespace Shackmojis
             }
 
             //make child posts
-            //MakeTagPosts(id, tagLists, true);
+            MakeTagPosts(id, tagLists, true);
+
+
 
             body = "Largest Threads:\n";
             for (int c = 0; c < postListSize && c < postsBiggestThread.Count; c++)
@@ -739,9 +742,16 @@ namespace Shackmojis
             Thread.Sleep(60 * 1000); //wait 60 seconds for PRL reasons
 
 
+
             //emoji
             body = GetEmojiReport(true);
-            System.Console.WriteLine(body);
+            //split the emoji post in two due to large size of encoded emoji
+            string[] postBodies = body.Split("\n\n\n", 2, StringSplitOptions.RemoveEmptyEntries);
+            System.Console.WriteLine(postBodies[0]);
+            System.Console.WriteLine("\n\n");
+            MakePost(id, body);
+            Thread.Sleep(60 * 1000); //wait 60 seconds for PRL reasons
+            System.Console.WriteLine(postBodies[1]);
             System.Console.WriteLine("\n\n");
             MakePost(id, body);
             Thread.Sleep(60 * 1000); //wait 60 seconds for PRL reasons
@@ -856,7 +866,7 @@ namespace Shackmojis
             {
                 //first find longest length of 50 most posting shackers
                 System.Text.StringBuilder buf = new System.Text.StringBuilder();
-                //buf.Append("User V  \\ Replied to>\n/{{");
+                buf.Append("/{{");
                 int len = 10;
                 int maxusers = 40;
                 /*
@@ -878,7 +888,7 @@ namespace Shackmojis
                 //make column headers
                 for (int i = 0; i < len; i++)
                 {
-                    if (i < 7)
+                    if (i < 10)
                     {
                         if (i == 0)
                         {
@@ -901,19 +911,31 @@ namespace Shackmojis
                         }
                         else if(i == 3)
                         {
-                            buf.Append(" ".PadRight(len));
+                            buf.Append("User -->".PadLeft(len));
                         }
                         else if(i == 4)
                         {
-                            buf.Append("User -->".PadLeft(len));
-                        }
-                        else if(i == 5)
-                        {
                             buf.Append("Replied to".PadRight(len));
                         }
-                        else
+                        else if (i == 5)
                         {
                             buf.Append("below user".PadRight(len));
+                        }
+                        else if (i == 6)
+                        {
+                            buf.Append(" ".PadRight(len));
+                        }
+                        else if (i == 7)
+                        {
+                            buf.Append(">99 = _[HEX]_ ");
+                        }
+                        else if (i == 8)
+                        {
+                            buf.Append(">255_[/[Base64]/]_");
+                        }
+                        else if (i == 9)
+                        {
+                            buf.Append("y{Self Reply}y");
                         }
                         buf.Append("|");
                     }
@@ -1024,9 +1046,10 @@ namespace Shackmojis
                     buf.Replace("  \r\n", "\r\n");
                 } while (buf.Length < size);
 
+/*
                 if(buf.Length < 4950)
                 {
-                    buf.Append("\n >99 = _[HEX Val]_, > 255 = _[/[Base 64 Val]/]_");
+                    buf.Append("\n >99 = _[HEX]_, > 255 = _[/[Base 64 Val]/]_");
                 }
                 else if(buf.Length < 4975)
                 {
@@ -1036,7 +1059,11 @@ namespace Shackmojis
                 {
                     buf.Append(", y{Reply to Self}y");
                 }
-
+*/
+                if (buf.Length <= 4950)
+                {
+                    buf.Append("Values are 2 digits, Names are above 1s column.");
+                }
 
                 System.Console.WriteLine(buf.ToString());
                 System.Console.WriteLine("\n\n");
@@ -1482,10 +1509,13 @@ namespace Shackmojis
 
             //startTime = utc.AddMinutes(-(System.TimeZoneInfo.Local.GetUtcOffset(day).TotalMinutes)); //not sure where this comes from, is the date not really utc as the doc says?
             startTime = utc.AddHours(5);//not sure why this doesn't seem right, but adding 5 makes the earliest posts come out to be the same hour as startTime, so...
-            DateTime test = startTime.ToLocalTime();
-            Console.WriteLine("test time = " + test);
+            //DateTime test = startTime.ToLocalTime();
+            //Console.WriteLine("test time = " + test);
 
-            utc = utc.AddDays(1); //adding 1 day due to it seeming that the date is the end date of the day requested, not the start date.
+            if (utc.Day == day.Day)
+            {
+                utc = utc.AddDays(1); //adding 1 day due to it seeming that the date is the end date of the day requested, not the start date.
+            }
 
             //utc = utc.AddMinutes(TimeZoneInfo.Local.GetUtcOffset(d).TotalMinutes);
             //the time doesn't seem to matter, will alwayss return the posts for the 24 hours ending on that UTC day.
@@ -1590,6 +1620,7 @@ namespace Shackmojis
                     }
                     else
                     {
+                        return 1;//it turns out we don't really want to throw an exception. It's better to miss one post than to not do any of the later posts.
                         throw new Exception("Error making post to " + Program.APIURL + ", result: " + responseText);
                     }
                 }
@@ -1985,7 +2016,7 @@ namespace Shackmojis
             {
                 char c = text[i];
                 String em = "";
-                if (c > 0x2100 && c < 0x2c00) //some characters in this range are emoji (snowman, umbrella), so count them all.
+                if (c >= 0x2100 && c < 0x2c00) //some characters in this range are emoji (snowman, umbrella), so count them all.
                 {
                     em += c;
                 }
