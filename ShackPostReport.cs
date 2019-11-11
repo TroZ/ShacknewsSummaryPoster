@@ -1,11 +1,16 @@
-﻿using Newtonsoft.Json;
+﻿
+using Newtonsoft.Json;
+using PuppeteerSharp;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Collections.Specialized;
+using System.Drawing.Imaging;
 using System.IO;
 using System.Net;
 using System.Text.RegularExpressions;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Xml;
 
 /*
@@ -78,6 +83,10 @@ namespace Shackmojis
         readonly SortedList<Post, Post> postsMostShacktags = new SortedList<Post, Post>(new PostCompareShacktags());
         readonly Dictionary<int, Post> currentThread = new Dictionary<int, Post>();
 
+        readonly Dictionary<string, int> wordList = new Dictionary<string, int>();
+
+        readonly Dictionary<Post, Post> threadPosts = new Dictionary<Post, Post>();
+
         //static Regex rx = new Regex(@"&#x?[a-fA-F0-9]{2,6};", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         readonly static Regex rxTag = new Regex(@"<[^>]*>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         readonly static Regex rxLink = new Regex(@"</?a[^>]*>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -103,7 +112,7 @@ namespace Shackmojis
        
 
 
-        static int maxHours = 24 + 20; //normally one day of post then extra 18 hours for a root post at the end to time out 
+        static int maxHours = 48; //normally one day of post then extra 18 hours for a root post at the end to time out 
         int[,] postTime = new int[2, maxHours];
 
         public ShackPostReport()
@@ -167,6 +176,8 @@ namespace Shackmojis
             {
                 posters.Add(pp, pp); //makes a sorted list by number of emojis
             }
+
+
 
             string bodyParent = SUMMARY_THREAD_START + yesterday.ToLongDateString() + ", the "+AddOrdinal(yesterday.DayOfYear)+" day of the year.\n";
             bodyParent += "b[" + rootCount + "]b _[e[Root Posts]e]_, b[" + replyCount + "]b /[l[Replies]l]/";
@@ -415,6 +426,32 @@ namespace Shackmojis
                     }
                 }
                 body2 += "}}/\n";
+
+
+                body2 += "\n\n\nWords of the day: ("+ wordList.Count+" unique words)\n";
+                SortedList<Word, Word> wordOrder = new SortedList<Word, Word>(new WordCompare());
+                foreach(string word in wordList.Keys)
+                {
+                    if (!Program.CommonWords.ContainsKey(word))
+                    {
+                        Word w = new Word(word);
+                        w.Count = wordList[word];
+                        wordOrder.Add(w, w);
+                    }
+                }
+                int totWords = 20;
+                if(wordOrder.Count < 20)
+                {
+                    totWords = wordOrder.Count;
+                }
+                for(int i = 0; i < totWords; i++)
+                {
+                    if (i > 0)
+                    {
+                        body2 += ", ";
+                    }
+                    body2 += wordOrder.Values[i].WordString + "(" + wordOrder.Values[i].Count + ")";
+                }
 
 
                 System.Console.WriteLine(body2);
@@ -694,7 +731,6 @@ namespace Shackmojis
             MakePost(id, body);
             Thread.Sleep(60 * 1000); //wait 60 seconds for PRL reasons
 
-
             body = "Chattiest Threads (with 10 or more posts):\n";
             for (int c = 0; c < postListSize && c < threadChattyness.Count; c++)
             {
@@ -808,11 +844,99 @@ namespace Shackmojis
 
 
 
-            body = MakeReplyToChart(users, true);
-            System.Console.WriteLine(body);
-            System.Console.WriteLine("\n\n");
+            //body = MakeReplyToChart(users, true);
+            //System.Console.WriteLine(body);
+            //System.Console.WriteLine("\n\n");
             MakePost(id, body);
             //Thread.Sleep(60 * 1000); //wait 60 seconds for PRL reasons
+
+            string filename = MakeReplyToChartImageAsync(users).Result;
+            string url = UploadImage(filename);
+
+            body = "Reply To Chart\n";
+            body += url + "\n";
+
+
+            body += "\n\n\nWords of the Week (" + wordList.Count + " unique words):\n";
+            SortedList<Word, Word> wordOrder = new SortedList<Word, Word>(new WordCompare());
+            foreach (string word in wordList.Keys)
+            {
+                if (!Program.CommonWords.ContainsKey(word))
+                {
+                    Word w = new Word(word);
+                    w.Count = wordList[word];
+                    wordOrder.Add(w, w);
+                }
+            }
+            int totWords = 100;
+            if (wordOrder.Count < totWords)
+            {
+                totWords = wordOrder.Count;
+            }
+            for (int i = 0; i < totWords; i++)
+            {
+                if (i > 0)
+                {
+                    body += ", ";
+                }
+                body += wordOrder.Values[i].WordString + "(" + wordOrder.Values[i].Count + ")";
+            }
+
+
+            //top tadded threads
+            SortedList<Post, Post> threadsAll = new SortedList<Post, Post>(new PostCompareTag(PostCompareTag.TAG_MAX));
+            SortedList<Post, Post> threadsLol = new SortedList<Post, Post>(new PostCompareTag(PostCompareTag.TAG_LOL));
+            SortedList<Post, Post> threadsInf = new SortedList<Post, Post>(new PostCompareTag(PostCompareTag.TAG_INF));
+            SortedList<Post, Post> threadsUnf = new SortedList<Post, Post>(new PostCompareTag(PostCompareTag.TAG_UNF));
+            SortedList<Post, Post> threadsTag = new SortedList<Post, Post>(new PostCompareTag(PostCompareTag.TAG_TAG));
+            SortedList<Post, Post> threadsWow = new SortedList<Post, Post>(new PostCompareTag(PostCompareTag.TAG_WOW));
+            SortedList<Post, Post> threadsAww = new SortedList<Post, Post>(new PostCompareTag(PostCompareTag.TAG_AWW));
+            SortedList<Post, Post> threadsWtf = new SortedList<Post, Post>(new PostCompareTag(PostCompareTag.TAG_WTF));
+            foreach (Post p in threadPosts.Values)
+            {
+                threadsAll.Add(p, p);
+                threadsLol.Add(p, p);
+                threadsInf.Add(p, p);
+                threadsUnf.Add(p, p);
+                threadsTag.Add(p, p);
+                threadsWow.Add(p, p);
+                threadsAww.Add(p, p);
+                threadsWtf.Add(p, p);
+            }
+            body += "\n\n\n\nThreads with most total tags:\n";
+            for (int c = 0; c < 3 && c < threadsAll.Count; c++)
+            {
+                Post p = threadsAll.Values[c];
+                body += String.Format("{0} tags in thread ", PostCompareTag.GetTagCount(p, PostCompareTag.TAG_MAX));
+                body += PrintPost(p, -1, 75) + "\n\n\n";
+            }
+            body += "\n\n";
+            SortedList<Post, Post>[] threadLists = { threadsLol, threadsInf, threadsUnf, threadsTag, threadsWow, threadsAww, threadsWtf };
+            for (int c = 0; c < threadLists.Length; c++)
+            {
+                body += "Thread with most " + PostCompareTag.GetTagName(c) + " tags:\n";
+                if (threadsAll.Count > 0)
+                {
+                    Post p = threadsAll.Values[0];
+                    body += String.Format("{0} {1} tags in thread ", PostCompareTag.GetTagCount(p, c), PostCompareTag.GetTagName(c));
+                    body += PrintPost(p, -1, 75) + "\n\n\n\n";
+                }
+            }
+
+
+            body += "\n\nImportant Linked Pages:\n";
+            foreach (Word ww in wordOrder.Values)
+            {
+                String word = ww.WordString;
+                if (word.StartsWith("http") && ww.Count > 1 && word.Length > 10 && body.Length + word.Length < 4900)
+                {
+                    body += "" + word + "\n";
+                }
+            }
+
+            System.Console.WriteLine(body);
+            System.Console.WriteLine("\n\n");
+            MakePost(rootId, body);
 
         }
 
@@ -854,7 +978,97 @@ namespace Shackmojis
             }
 
 
-            string body = MakeReplyToChart(users);
+
+            //string body = MakeReplyToChart(users);
+            //System.Console.WriteLine(body);
+            //System.Console.WriteLine("\n\n");
+            //MakePost(rootId, body);
+
+            string filename = MakeReplyToChartImageAsync(users).Result;
+            string url = UploadImage(filename);
+
+            string body = "";
+            body = "This Week:\n\nReply To Chart\n";
+            body += url + "\n"; //filename + "\n";
+
+
+            body += "\n\n\nWords of the Week (" + wordList.Count + " unique words):\n";
+            SortedList<Word, Word> wordOrder = new SortedList<Word, Word>(new WordCompare());
+            foreach (string word in wordList.Keys)
+            {
+                if (!Program.CommonWords.ContainsKey(word))
+                {
+                    Word w = new Word(word);
+                    w.Count = wordList[word];
+                    wordOrder.Add(w, w);
+                }
+            }
+            int totWords = 50;
+            if (wordOrder.Count < totWords)
+            {
+                totWords = wordOrder.Count;
+            }
+            for (int i = 0; i < totWords; i++)
+            {
+                if (i > 0)
+                {
+                    body += ", ";
+                }
+                body += wordOrder.Values[i].WordString+"("+ wordOrder.Values[i].Count+")";
+            }
+
+
+            //top tadded threads
+            SortedList<Post, Post> threadsAll = new SortedList<Post, Post>(new PostCompareTag(PostCompareTag.TAG_MAX));
+            SortedList<Post, Post> threadsLol = new SortedList<Post, Post>(new PostCompareTag(PostCompareTag.TAG_LOL));
+            SortedList<Post, Post> threadsInf = new SortedList<Post, Post>(new PostCompareTag(PostCompareTag.TAG_INF));
+            SortedList<Post, Post> threadsUnf = new SortedList<Post, Post>(new PostCompareTag(PostCompareTag.TAG_UNF));
+            SortedList<Post, Post> threadsTag = new SortedList<Post, Post>(new PostCompareTag(PostCompareTag.TAG_TAG));
+            SortedList<Post, Post> threadsWow = new SortedList<Post, Post>(new PostCompareTag(PostCompareTag.TAG_WOW));
+            SortedList<Post, Post> threadsAww = new SortedList<Post, Post>(new PostCompareTag(PostCompareTag.TAG_AWW));
+            SortedList<Post, Post> threadsWtf = new SortedList<Post, Post>(new PostCompareTag(PostCompareTag.TAG_WTF));
+            foreach(Post p in threadPosts.Values)
+            {
+                threadsAll.Add(p, p);
+                threadsLol.Add(p, p);
+                threadsInf.Add(p, p);
+                threadsUnf.Add(p, p);
+                threadsTag.Add(p, p);
+                threadsWow.Add(p, p);
+                threadsAww.Add(p, p);
+                threadsWtf.Add(p, p);
+            }
+            body += "\n\n\n\nThreads with most total tags:\n";
+            for (int c = 0; c < 3 && c < threadsAll.Count; c++)
+            {
+                Post p = threadsAll.Values[c];
+                body += String.Format("{0} tags in thread ", PostCompareTag.GetTagCount(p, PostCompareTag.TAG_MAX));
+                body += PrintPost(p, -1, 75) + "\n\n\n";
+            }
+            body += "\n\n";
+            SortedList<Post, Post>[] threadLists = { threadsLol, threadsInf, threadsUnf, threadsTag, threadsWow, threadsAww, threadsWtf };
+            for(int c = 0; c < threadLists.Length; c++)
+            {
+                body += "Thread with most "+PostCompareTag.GetTagName(c)+" tags:\n";
+                if(threadLists[c].Count > 0)
+                {
+                    Post p = threadLists[c].Values[0];
+                    body += String.Format("{0} {1} tags in thread ", PostCompareTag.GetTagCount(p, c), PostCompareTag.GetTagName(c));
+                    body += PrintPost(p, -1, 75) + "\n\n\n\n";
+                }
+            }
+
+
+            body += "\n\nImportant Linked Pages:\n";
+            foreach (Word ww in wordOrder.Values)
+            {
+                String word = ww.WordString;
+                if (word.StartsWith("http") && ww.Count > 1 && word.Length > 10 && body.Length + word.Length < 4900 )
+                {
+                    body += "" + word + "\n";
+                }
+            }
+
             System.Console.WriteLine(body);
             System.Console.WriteLine("\n\n");
             MakePost(rootId, body);
@@ -1071,6 +1285,311 @@ namespace Shackmojis
             }
         }
 
+        private async System.Threading.Tasks.Task<string> MakeReplyToChartImageAsync(SortedList<Person, Person> users, bool month = false)
+        {
+            //reply to chart - how the top 40 posters (by post count) replied to each other
+            System.Text.StringBuilder buf = new System.Text.StringBuilder();
+            
+            int maxusers = 100;
+            if (month)
+            {
+                maxusers = 250;
+            }
+            if(maxusers > users.Count)
+            {
+                maxusers = users.Count;
+            }
+
+            DateTime date = DateTime.Now;
+            date = date.AddDays(-1);
+
+
+            buf.Append("<http>\n<head>\n<title>Reply To Chart</title>\n");
+            buf.Append("<style>\n");
+            buf.Append("body{background: black;color: white;}\n");
+            buf.Append("table{font-size: 12px;}\n");
+            buf.Append(".head td{position: relative;min-width: 2em;text-align: left;}\n");
+            //the translate here should really be 1.7em, 1px, but for some reason the browser we are using needs it to be bigger
+            buf.Append(".head td div{writing-mode: vertical-rl;font-weight: bold;transform: translate(2.2em, 1px) rotate(200deg);top: 0;bottom: 0;position: absolute;}\n");
+            buf.Append("th{text-align: right}\n");
+            buf.Append(".head td.corner{text-align:right;height: 13em;width: 13em;vertical-align: bottom;}\n");
+            buf.Append("td{text-align: center;}\n");
+            buf.Append(".s35{background: #60ffff;}\n");
+            buf.Append(".s20{background: #00ffff}\n");
+            buf.Append(".s10{background: #00cccc}\n");
+            buf.Append(".s5{background: #009999}\n");
+            buf.Append(".s{background: #007777}\n");
+            buf.Append(".r35{background: #ff40ff;}\n");
+            buf.Append(".r20{background: #ff00ff}\n");
+            buf.Append(".r10{background: #cc00cc}\n");
+            buf.Append(".r5{background: #990099}\n");
+            buf.Append(".r0{background: #770077}\n");
+            buf.Append(".u55{background: #ff6060;}\n");
+            buf.Append(".u35{background: #ff4040;}\n");
+            buf.Append(".u20{background: #cc1010}\n");
+            buf.Append(".u10{background: #990000}\n");
+            buf.Append(".u5{background: #770000}\n");
+            buf.Append(".o55{background: #40ff40;}\n");
+            buf.Append(".o35{background: #00ff00;}\n");
+            buf.Append(".o20{background: #00cc00}\n");
+            buf.Append(".o10{background: #009900}\n");
+            buf.Append(".o5{background: #007700}\n");
+            buf.Append(".v0{color: white;}\n");
+            buf.Append(".v1{color: #ddddff}\n");
+            buf.Append(".v2{color: #bbbbff}\n");
+            buf.Append(".v3{color: #9999ff}\n");
+            buf.Append(".v4{color: #8585ff}\n");
+            buf.Append(".v5{color: #7070ff}\n");
+            buf.Append(".v6{color: #5555ff}\n");
+            buf.Append(".v7{color: #4040ff}\n");
+            buf.Append(".v8{color: #2525ff}\n");
+            buf.Append(".v9{color: #1010ff}\n");
+            buf.Append(".v10{color: #0000ee}\n");
+            buf.Append("</style>\n");
+            buf.Append("</head>\n<body>\n");
+
+            buf.Append("<h2>Top User Posts for the ");
+            if (month)
+            {
+                buf.Append("Month of ");
+                buf.Append(date.ToString("yyyy-MM"));
+            }
+            else
+            {
+                buf.Append("Week of ");
+                buf.Append(date.ToString("yyyy-MM-dd"));
+            }
+            buf.Append("</h2>\n");
+            buf.Append("<table id=\"table\">\n");
+            buf.Append("<tr class=head><td class=corner>User --><br>was replied to<br>by below user</td>\n");
+
+            //make column headers
+            buf.Append("<td><div>ROOT POST</div></td>\n");
+            for (int j = 0; j < maxusers; j++)
+            {
+                string name = users.Values[j].Name;
+                buf.Append("<td><div>");
+                buf.Append(name);
+                buf.Append("</div></td>\n");
+            }
+            buf.Append("\n");
+
+
+            //Make rows
+            for (int i = 0; i < maxusers ; i++)
+            {
+                string name = users.Values[i].Name;
+                buf.Append("<tr><th>");
+                buf.Append(name);
+                buf.Append("</th>");
+
+                for (int j = 0; j < maxusers+1; j++)
+                {
+                    name = "";
+                    string oppo = users.Values[i].Name + "|";
+                    if (j > 0)
+                    {
+                        name = users.Values[j-1].Name;
+                        oppo += users.Values[j-1].Name;
+                    }
+                    name += "|" + users.Values[i].Name;
+                    int num = 0;
+                    if (replyChart.ContainsKey(name))
+                    {
+                        num = replyChart[name];
+                    }
+                    int diff = num;
+                    if(j>0 && j-1!=i && replyChart.ContainsKey(oppo))
+                    {
+                        diff = num - replyChart[oppo];
+                    }
+                    if (num != 0 || diff < -4)
+                    {
+                        string cls = "";
+                        if (j == 0)
+                        {
+                            //reply to root
+                            cls += "r";
+                        }
+                        else if(j - 1 == i)
+                        {
+                            //reply to self
+                            cls += "s";
+                        }
+                        else if(diff > 4)
+                        {
+                            //over opposite pair
+                            cls += "o";
+                        }
+                        else if (diff < -4)
+                        {
+                            //under opposite pair
+                            cls += "u";
+                        }
+
+                        if (cls.Length > 0 || num > 10)
+                        {
+                            if (diff >= 55 || diff <= -55)
+                            {
+                                cls += "55";
+                            }
+                            else if(diff >= 35 || diff <= -35)
+                            {
+                                cls += "35";
+                            }
+                            else if(diff >= 20 || diff <= -20)
+                            {
+                                cls += "20";
+                            }
+                            else if (diff >= 10 || diff <= -10)
+                            {
+                                cls += "10";
+                            }
+                            else if (diff >= 5 || diff <= -5)
+                            {
+                                cls += "5";
+                            }
+
+                            if (num > 10 && j!=0 && j-1!=i)
+                            {
+                                int v = (num-1) / 10;
+                                if (v > 10) v = 10;
+                                cls += " v" + v;
+                            }
+
+                            buf.Append("<td class=\"");
+                            buf.Append(cls);
+                            buf.Append("\">");
+                            if (num != 0)
+                            {
+                                buf.Append("" + num);
+                            }
+                            buf.Append("</td>");
+                        }
+                        else
+                        {
+                            buf.Append("<td>");
+                            buf.Append("" + num);
+                            buf.Append("</td>");
+                        }
+                    }
+                    else
+                    {
+                        buf.Append("<td></td>");
+                    }
+
+                }
+                buf.Append("</tr>\n");
+            }
+            buf.Append("</table>\n");
+            buf.Append("</body>\n");
+            buf.Append("</html>\n");
+
+            
+
+            System.Console.WriteLine(buf.ToString());
+            System.Console.WriteLine("\n\n");
+
+
+            string filename = Directory.GetCurrentDirectory() + "\\" + "replychart";
+            if (month)
+            {
+                filename += "month";
+            }
+            else
+            {
+                filename += "week";
+            }
+
+            string filename2 = filename + date.ToString("yyyyMMdd") + ".html";
+            filename += date.ToString("yyyyMMdd")+".png";
+
+
+            System.IO.File.WriteAllText(filename2, buf.ToString());
+
+
+            /*
+                        //Create a ThreadRunner object
+                        ThreadRunner threadRunner = new ThreadRunner();
+                        //Create a WebView through the ThreadRunner
+                        WebView webView = threadRunner.CreateWebView();
+
+
+                        threadRunner.Send(() =>
+                        {
+                            //webView.Resize(new System.Drawing.Size())
+
+                            //Load Google's home page
+                            webView.LoadHtmlAndWait(buf.ToString());
+
+                            Object o;
+                            o = webView.EvalScript("document.body.scrollWidth");
+                            int width = int.Parse(o.ToString());
+                            o = webView.EvalScript("document.body.scrollHeight");
+                            int height = int.Parse(o.ToString());
+
+                            webView.Resize(width+20, height+20);
+
+                            //Capture screenshot and save it to a file
+                            webView.Capture(new System.Drawing.Rectangle(0,0,width,height)).Save(filename, ImageFormat.Png);
+                        });
+
+                        webView.Dispose();
+                        threadRunner.Stop();
+
+
+
+            // * /
+                        var th = new Thread(() => {
+                            Microsoft.Toolkit.Wpf.UI.Controls.WebView br = new Microsoft.Toolkit.Wpf.UI.Controls.WebView();
+                            //br.NavigationCompleted += browser_DocumentCompleted;
+                            br.NavigateToString(buf.ToString());
+
+                        });
+                        th.SetApartmentState(ApartmentState.STA);
+                        th.Start();
+            //*/
+
+
+            await new BrowserFetcher().DownloadAsync(BrowserFetcher.DefaultRevision);
+            var browser = await Puppeteer.LaunchAsync(new LaunchOptions
+            {
+                Headless = true
+            });
+
+            using (var page = await browser.NewPageAsync())
+            {
+                await page.SetContentAsync(buf.ToString());
+                var result = await page.GetContentAsync();
+
+                //var val = page.EvaluateFunctionAsync("document.body.scrollWidth");
+                //int width = int.Parse(val.Result.ToString());
+                //val = page.EvaluateFunctionAsync("document.body.scrollHeight");
+                //int height = int.Parse(val.Result.ToString());
+                int width = await page.EvaluateFunctionAsync<int>("()=> document.body.scrollWidth");
+                int height = await page.EvaluateFunctionAsync<int>("()=> document.body.scrollHeight");
+
+                await page.SetViewportAsync(new ViewPortOptions
+                {
+                    Width = width,
+                    Height = height
+                });
+
+                await page.ScreenshotAsync(filename);
+            }
+
+
+
+            return filename;
+            
+        }
+
+/*
+        void browser_DocumentCompleted(Microsoft.Toolkit.Win32.UI.Controls.Interop.WinRT.WebViewControlNavigationCompletedEventArgs e)
+        {
+            
+        }
+*/
         public static int GetNewRootPostId(string body, string username)
         {
             //this isn't a good way to do this. Only works for root posts (as that is all we request).
@@ -1390,7 +1909,7 @@ namespace Shackmojis
                                 }
                                 else
                                 {
-                                    stack.Push(""); //found span without a class, add an empty tag to the stack so when we hit the end, we have something to pop (this sould never happen)
+                                    stack.Push(""); //found span without a class, add an empty tag to the stack so when we hit the end, we have something to pop (this should never happen)
                                 }
                                 break;
 
@@ -1508,7 +2027,11 @@ namespace Shackmojis
             utc = utc.AddSeconds(-utc.Second);
 
             //startTime = utc.AddMinutes(-(System.TimeZoneInfo.Local.GetUtcOffset(day).TotalMinutes)); //not sure where this comes from, is the date not really utc as the doc says?
-            startTime = utc.AddHours(5);//not sure why this doesn't seem right, but adding 5 makes the earliest posts come out to be the same hour as startTime, so...
+            startTime = utc.AddHours(5);//not sure why this doesn't seem right, but adding 5 makes the earliest posts come out to be the same hour as startTime, so...   Are the times Central Time based?
+            if(day.IsDaylightSavingTime() == false)
+            {
+                startTime = utc.AddHours(6);
+            }
             //DateTime test = startTime.ToLocalTime();
             //Console.WriteLine("test time = " + test);
 
@@ -1518,7 +2041,7 @@ namespace Shackmojis
             }
 
             //utc = utc.AddMinutes(TimeZoneInfo.Local.GetUtcOffset(d).TotalMinutes);
-            //the time doesn't seem to matter, will alwayss return the posts for the 24 hours ending on that UTC day.
+            //the time doesn't seem to matter, will always return the posts for the 24 hours ending on that UTC day.
 
             date = utc.ToString("yyyy-MM-ddTHH:mm:ssZ");
             date = System.Web.HttpUtility.UrlPathEncode(date);
@@ -1791,7 +2314,25 @@ namespace Shackmojis
                     replyChart[entry] = 1;
                 }
             }
-                
+
+            //thread summary
+            Post threadPost = new Post();
+            threadPost.Id = root.Id;
+            threadPost.Author = root.Author;
+            threadPost.Text = root.Text;
+            foreach (Post p in currentThread.Values)
+            {
+                threadPost.Tag_lol += p.Tag_lol;
+                threadPost.Tag_inf += p.Tag_inf;
+                threadPost.Tag_unf += p.Tag_unf;
+                threadPost.Tag_tag += p.Tag_tag;
+                threadPost.Tag_wow += p.Tag_wow;
+                threadPost.Tag_aww += p.Tag_aww;
+                threadPost.Tag_wtf += p.Tag_wtf;
+            }
+            threadPosts.Add(threadPost, threadPost);
+
+
             currentThread.Clear();
         }
 
@@ -1925,13 +2466,14 @@ namespace Shackmojis
                 //count words, ignore urls
                 string text = body.Trim();
                 text = text.Replace("<br>", "\n").Replace("<br />", "\n");
-                text = rxFullLink.Replace(text, "");
+                //text = rxFullLink.Replace(text, "");
+                text = rxTag.Replace(text, "");
 
                 pt.WordCount = CountWords(text);
             }
         }
 
-        public static int CountWords(string text)
+        public int CountWords(string text)
         {
             int wordCount = 0, index = 0;
 
@@ -1951,6 +2493,34 @@ namespace Shackmojis
                 while (index < text.Length && char.IsWhiteSpace(text[index]))
                     index++;
             }
+
+
+            string[] words = text.Split(" \r\n".ToCharArray(), StringSplitOptions.RemoveEmptyEntries);
+            foreach(string word in words)
+            {
+                string w = word.Trim().ToLower();
+                while (w.EndsWith('.') || w.EndsWith(',') || w.EndsWith('!') || w.EndsWith('?') || w.EndsWith(')') || w.EndsWith('}') || w.EndsWith(']') || w.EndsWith('\"') || w.EndsWith('\''))
+                {
+                    w = w.Substring(0, w.Length - 1);
+                }
+                while (w.StartsWith('\"') || w.StartsWith('\'') || w.StartsWith('(') || w.StartsWith('[') || w.StartsWith('{'))
+                {
+                    w = w.Substring(1, w.Length - 1);
+                }
+                if (w.Length > 3) {
+
+                    if (wordList.ContainsKey(w))
+                    {
+                        wordList[w] = wordList[w] + 1;
+                    }
+                    else
+                    {
+                        wordList.Add(w, 1);
+                    }
+                }
+            }
+
+
 
             return wordCount;
         }
@@ -2358,6 +2928,102 @@ namespace Shackmojis
                     return num + "th";
             }
 
+        }
+
+
+
+        public static String UploadImage(string filename)
+        {
+            /*  Toggle comment - switch the beginning of this line between /* and //* (add or remove first /) to toggle function on or off
+            return "";
+            /*/
+
+            //posts <body> to Shacknews as a reply to post <parent> (or root if parent is 0)
+
+            //string fileLocation = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + Path.DirectorySeparatorChar + "somefile.jpg";
+            NameValueCollection values = new NameValueCollection();
+            NameValueCollection files = new NameValueCollection();
+            values.Add("type", "direct");
+            files.Add("userfile[]", filename);
+            string html = SendFormRequest("http://chattypics.com/uploadtoskynet.php", values, files);
+
+            var htmlDoc = new HtmlAgilityPack.HtmlDocument();
+            htmlDoc.LoadHtml(html);
+
+            var input = htmlDoc.DocumentNode.SelectSingleNode("//input[@id='link11']");
+            if(input != null)
+            {
+                return input.GetAttributeValue("value", "");
+            }
+            
+
+            return "";
+
+            //*/
+        }
+
+        private static string SendFormRequest(string url, NameValueCollection values, NameValueCollection files = null)
+        {
+            string boundary = "----------------ShackPostReport" + DateTime.Now.Ticks.ToString("x");
+            // The first boundary
+            byte[] boundaryBytes = System.Text.Encoding.UTF8.GetBytes("\r\n--" + boundary + "\r\n");
+            // The last boundary
+            byte[] trailer = System.Text.Encoding.UTF8.GetBytes("\r\n--" + boundary + "--\r\n");
+            // The first time it itereates, we need to make sure it doesn't put too many new paragraphs down or it completely messes up poor webbrick
+            byte[] boundaryBytesF = System.Text.Encoding.ASCII.GetBytes("--" + boundary + "\r\n");
+
+            // Create the request and set parameters
+            HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
+            request.ContentType = "multipart/form-data; boundary=" + boundary;
+            request.Method = "POST";
+            request.KeepAlive = true;
+            request.Credentials = System.Net.CredentialCache.DefaultCredentials;
+
+            // Get request stream
+            Stream requestStream = request.GetRequestStream();
+
+            foreach (string key in values.Keys)
+            {
+                // Write item to stream
+                byte[] formItemBytes = System.Text.Encoding.UTF8.GetBytes(string.Format("Content-Disposition: form-data; name=\"{0}\";\r\n\r\n{1}", key, values[key]));
+                requestStream.Write(boundaryBytes, 0, boundaryBytes.Length);
+                requestStream.Write(formItemBytes, 0, formItemBytes.Length);
+            }
+
+            if (files != null)
+            {
+                foreach (string key in files.Keys)
+                {
+                    if (File.Exists(files[key]))
+                    {
+                        int bytesRead = 0;
+                        byte[] buffer = new byte[2048];
+                        byte[] formItemBytes = System.Text.Encoding.UTF8.GetBytes(string.Format("Content-Disposition: form-data; name=\"{0}\"; filename=\"{1}\"\r\nContent-Type: application/octet-stream\r\n\r\n", key, files[key]));
+                        requestStream.Write(boundaryBytes, 0, boundaryBytes.Length);
+                        requestStream.Write(formItemBytes, 0, formItemBytes.Length);
+
+                        using (FileStream fileStream = new FileStream(files[key], FileMode.Open, FileAccess.Read))
+                        {
+                            while ((bytesRead = fileStream.Read(buffer, 0, buffer.Length)) != 0)
+                            {
+                                // Write file content to stream, byte by byte
+                                requestStream.Write(buffer, 0, bytesRead);
+                            }
+
+                            fileStream.Close();
+                        }
+                    }
+                }
+            }
+
+            // Write trailer and close stream
+            requestStream.Write(trailer, 0, trailer.Length);
+            requestStream.Close();
+
+            using (StreamReader reader = new StreamReader(request.GetResponse().GetResponseStream()))
+            {
+                return reader.ReadToEnd();
+            };
         }
     }
 

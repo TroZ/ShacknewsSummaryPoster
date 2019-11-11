@@ -61,6 +61,8 @@ namespace Shackmojis
                     return p.Tag_aww;
                 case TAG_WTF:
                     return p.Tag_wtf;
+                case TAG_MAX:
+                    return p.Tag_lol+ p.Tag_inf+ p.Tag_unf+ p.Tag_tag + p.Tag_wow+ p.Tag_aww+p.Tag_wtf;
                 default:
                     return p.Tag_lol;
             }
