@@ -915,9 +915,9 @@ namespace Shackmojis
             for (int c = 0; c < threadLists.Length; c++)
             {
                 body += "Thread with most " + PostCompareTag.GetTagName(c) + " tags:\n";
-                if (threadsAll.Count > 0)
+                if (threadLists[c].Count > 0)
                 {
-                    Post p = threadsAll.Values[0];
+                    Post p = threadLists[c].Values[0];
                     body += String.Format("{0} {1} tags in thread ", PostCompareTag.GetTagCount(p, c), PostCompareTag.GetTagName(c));
                     body += PrintPost(p, -1, 75) + "\n\n\n\n";
                 }
