@@ -12,11 +12,12 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
+using Microsoft.Extensions.Logging;
 
 /*
 MIT License
 
-Copyright (c) 2019 Brian Risinger
+Copyright (c) 2020 Brian Risinger
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -47,8 +48,12 @@ namespace Shackmojis
         readonly SortedList<Person, Person> posters = new SortedList<Person, Person>(new PersonCompare());
         readonly Dictionary<string, Person> posterList = new Dictionary<string, Person>();
 
+        const int PRL_DELAY = 1000; //60 * 1000; //Thread.Sleep(60 * 1000); //wait 60 seconds for PRL reasons 
 
-        DateTime startTime = DateTime.Now;
+        PostDataList postDataList = new PostDataList(Program.logger, Program.POSTSFILE);
+
+
+        DateTime startTime = DateTime.Now; //this gets replaced in GetThreadRootTimes
         DateTime minPostDate = DateTime.Now;
         DateTime maxPostDate = new DateTime();
 
@@ -87,6 +92,8 @@ namespace Shackmojis
 
         readonly Dictionary<Post, Post> threadPosts = new Dictionary<Post, Post>();
 
+        readonly Dictionary<string, int> emojiPopularity = new Dictionary<string, int>();
+
         //static Regex rx = new Regex(@"&#x?[a-fA-F0-9]{2,6};", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         readonly static Regex rxTag = new Regex(@"<[^>]*>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         readonly static Regex rxLink = new Regex(@"</?a[^>]*>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -117,10 +124,8 @@ namespace Shackmojis
 
         public ShackPostReport()
         {
+
             DateTime now = DateTime.Now;
-            DateTime yesterday = now.AddDays(-1);
-            yesterday = yesterday.AddHours(-1);
-            yesterday.AddHours(4);
 
             //clear postTime
             for(int x = 0; x < 2; x++)
@@ -130,6 +135,9 @@ namespace Shackmojis
                     postTime[x, y] = 0;
                 }
             }
+
+
+            
 
             //string testPost = "Test Post\n/{{ 1,  2,  3\r11, 22, 33\r}}/";
             //int id = MakePost(38956503, testPost);
@@ -142,7 +150,7 @@ namespace Shackmojis
             //string teststr = "<span class=\"jt_yellow\"><span class=\"jt_yellow\">test str</span></sp";
             //teststr = FixShackTags(teststr);
 
-            dynamic response = GetDayRootPosts(yesterday);
+            //dynamic response = GetDayRootPosts(yesterday); // old code - dead after 8/21/2020 Winchatty api change
 
             //System.Console.WriteLine(response.ToString());
 
@@ -162,15 +170,25 @@ namespace Shackmojis
             modLists[3] = postsModPol;
             modLists[4] = postsModNws;
 
-            GetThreadRootTimes(response);
 
-            if (response != null && response.rootPosts != null)
+            postDataList.Load();
+
+            
+            DateTime yesterday = DateTime.Now.AddDays(-1);
+            yesterday = yesterday.AddHours(-yesterday.Hour);
+            yesterday = yesterday.AddMinutes(-yesterday.Minute);
+            yesterday = yesterday.AddSeconds(-yesterday.Second);
+            //yesdterday should now be midnight of yesterday;
+            
+            List<PostData> threads = GetThreadRootTimes(yesterday);
+
+            if (threads != null)
             {
-                int c = response.rootPosts.Count;
-                System.Console.WriteLine("Thread Count: "+c);
+                int c = threads.Count;
+                System.Console.WriteLine("Thread Count: " + c);
             }
 
-            GetThreads(response); //this does most of the work, getting emoji counts, and also make the lists of top tagged posts
+            GetThreads(threads); //this does most of the work, getting emoji counts, and also make the lists of top tagged posts
 
             foreach (Person pp in posterList.Values)
             {
@@ -222,6 +240,10 @@ namespace Shackmojis
                                 bodyParent += "Check out today's 🐶🐹Pets🐾🐱 thread!";
                             }
                         tid = GetTodayThreadId("THE OFFICIAL SHACKNEWS NFL THREAD");
+                        if(tid < 1)
+                        {
+                            tid = GetTodayThreadId("THE OFFICIAL NFL THREAD");
+                        }
                         if (tid > 0)
                         {
                             bodyParent += " Also, 🏈 FOOTBALL 🏈 :  https://www.shacknews.com/chatty?id=" + tid + "#item_" + tid ;
@@ -304,11 +326,11 @@ namespace Shackmojis
 
 
             int id = MakePost(0, bodyParent);
-            /*
-            int id = 1;
-            /*/
+#if DEBUG
+            id = 1;
+#else
             id = GetNewRootPostId(bodyParent,Program.USERNAME);
-            //*/
+#endif
 
 
             if (id > 0)
@@ -336,8 +358,7 @@ namespace Shackmojis
                 System.Console.WriteLine(body2);
                 System.Console.WriteLine("\n\n");
                 MakePost(id, body2);
-                Thread.Sleep(60 * 1000); //wait 60 seconds for PRL reasons 
-
+                Thread.Sleep(PRL_DELAY); //wait 60 seconds for PRL reasons 
 
                 MakeTagPosts(id, tagLists);
 
@@ -348,8 +369,14 @@ namespace Shackmojis
                     DateTime.Now.DayOfWeek == System.DayOfWeek.Friday)
                 {
                     System.Console.WriteLine("Posting Shackbattles");
-                    MakePost(id, "Upcomming SHACKBATTLES:\n\n" + GetUrl("http://shackbattl.es/external/ShackBattlesPost.aspx"));
-                    Thread.Sleep(60 * 1000); //wait 60 seconds for PRL reasons 
+                    try
+                    {
+                        MakePost(id, "Upcoming SHACKBATTLES:\n\n" + GetUrl("http://shackbattl.es/external/ShackBattlesPost.aspx"));
+                    }catch (Exception ex)
+                    {
+                        Program.logger.LogError(ex, "Error when getting ShackBattles");
+                    }
+                    Thread.Sleep(PRL_DELAY); //wait 60 seconds for PRL reasons 
                 }
 
 
@@ -457,7 +484,7 @@ namespace Shackmojis
                 System.Console.WriteLine(body2);
                 System.Console.WriteLine("\n\n");
                 MakePost(id, body2);
-                Thread.Sleep(60 * 1000); //wait 60 seconds for PRL reasons 
+                Thread.Sleep(PRL_DELAY); //wait 60 seconds for PRL reasons 
 
                 //Featured Articles / recent videos
                 {
@@ -571,7 +598,7 @@ namespace Shackmojis
                 System.Console.WriteLine(body);
                 System.Console.WriteLine("\n\n");
                 MakePost(id, body); //post a tag report
-                Thread.Sleep(60 * 1000); //wait 60 seconds for PRL reasons 
+                Thread.Sleep(PRL_DELAY); //wait 60 seconds for PRL reasons 
 
             }
         }
@@ -618,17 +645,16 @@ namespace Shackmojis
 
                 System.Console.WriteLine("\nGetting data for: " + day);
 
-                dynamic response = GetDayRootPosts(day);
+                
+                List<PostData> posts = GetThreadRootTimes(day);
 
-                GetThreadRootTimes(response);
-
-                if (response != null && response.rootPosts != null)
+                if (posts != null )
                 {
-                    int c = response.rootPosts.Count;
+                    int c = posts.Count;
                     System.Console.WriteLine("Thread Count: " + c);
                 }
 
-                GetThreads(response); //this does most of the work, getting emoji counts, and also make the lists of top tagged posts
+                GetThreads(posts); //this does most of the work, getting emoji counts, and also make the lists of top tagged posts
 
                 day = day.AddDays(-1);
             } 
@@ -691,7 +717,7 @@ namespace Shackmojis
             System.Console.WriteLine(body);
             System.Console.WriteLine("\n\n");
             int id = MakePost(rootId, body);
-            Thread.Sleep(60 * 1000); //wait 60 seconds for PRL reasons
+            Thread.Sleep(PRL_DELAY); //wait 60 seconds for PRL reasons
 
 
             //Get reply ID
@@ -729,7 +755,7 @@ namespace Shackmojis
             System.Console.WriteLine(body);
             System.Console.WriteLine("\n\n");
             MakePost(id, body);
-            Thread.Sleep(60 * 1000); //wait 60 seconds for PRL reasons
+            Thread.Sleep(PRL_DELAY); //wait 60 seconds for PRL reasons
 
             body = "Chattiest Threads (with 10 or more posts):\n";
             for (int c = 0; c < postListSize && c < threadChattyness.Count; c++)
@@ -742,7 +768,7 @@ namespace Shackmojis
             System.Console.WriteLine(body);
             System.Console.WriteLine("\n\n");
             MakePost(id, body);
-            Thread.Sleep(60 * 1000); //wait 60 seconds for PRL reasons
+            Thread.Sleep(PRL_DELAY); //wait 60 seconds for PRL reasons
 
 
             //most shacktagged post
@@ -775,22 +801,57 @@ namespace Shackmojis
             System.Console.WriteLine(body);
             System.Console.WriteLine("\n\n");
             MakePost(id, body);
-            Thread.Sleep(60 * 1000); //wait 60 seconds for PRL reasons
+            Thread.Sleep(PRL_DELAY); //wait 60 seconds for PRL reasons
 
 
 
-            //emoji
-            body = GetEmojiReport(true);
-            //split the emoji post in two due to large size of encoded emoji
-            string[] postBodies = body.Split("\n\n\n", 2, StringSplitOptions.RemoveEmptyEntries);
-            System.Console.WriteLine(postBodies[0]);
-            System.Console.WriteLine("\n\n");
-            MakePost(id, body);
-            Thread.Sleep(60 * 1000); //wait 60 seconds for PRL reasons
-            System.Console.WriteLine(postBodies[1]);
-            System.Console.WriteLine("\n\n");
-            MakePost(id, body);
-            Thread.Sleep(60 * 1000); //wait 60 seconds for PRL reasons
+            //emoji & popularity
+            {
+                string emojibody = "Most Popular Emoji\nTimes Used, Emoji\n/{{";
+                SortedList<Word, Word> emojiOrder = new SortedList<Word, Word>(new WordCompare());
+                foreach (string word in emojiPopularity.Keys)
+                {
+                    Word w = new Word(word);
+                    w.Count = emojiPopularity[word];
+                    emojiOrder.Add(w, w);
+                }
+                int totEmoji = 25;
+                if (emojiOrder.Count < 20)
+                {
+                    totEmoji = emojiOrder.Count;
+                }
+                for (int i = 0; i < totEmoji; i++)
+                {
+                    emojibody += ("" + emojiOrder.Values[i].Count).PadLeft(4) + ", " + emojiOrder.Values[i].WordString+"\n";
+                }
+                emojibody += "}}/";
+
+                body = GetEmojiReport(true);
+                //split the emoji post in two due to large size of encoded emoji
+                string[] postBodies = body.Split("\n\n\n", 2, StringSplitOptions.RemoveEmptyEntries);
+
+                if((postBodies[0].Length + emojibody.Length) < 2500)
+                {
+                    postBodies[0] += "\n\n" + emojibody;
+                    emojibody = "";
+                }
+
+                System.Console.WriteLine(postBodies[0]);
+                System.Console.WriteLine("\n\n");
+                MakePost(id, postBodies[0]);
+                Thread.Sleep(60 * 1000); //wait 60 seconds for PRL reasons
+                System.Console.WriteLine(postBodies[1]);
+                System.Console.WriteLine("\n\n");
+                MakePost(id, postBodies[1]);
+                Thread.Sleep(PRL_DELAY); //wait 60 seconds for PRL reasons
+
+                if(emojibody.Length > 10)
+                {
+                    MakePost(id, emojibody);
+                    Thread.Sleep(PRL_DELAY); //wait 60 seconds for PRL reasons
+                }
+            }
+            
 
 
             //top posters by total posts
@@ -840,17 +901,17 @@ namespace Shackmojis
             System.Console.WriteLine(body);
             System.Console.WriteLine("\n\n");
             MakePost(id, body);
-            Thread.Sleep(60 * 1000); //wait 60 seconds for PRL reasons
+            Thread.Sleep(PRL_DELAY); //wait 60 seconds for PRL reasons
 
 
 
             //body = MakeReplyToChart(users, true);
             //System.Console.WriteLine(body);
             //System.Console.WriteLine("\n\n");
-            MakePost(id, body);
+            //MakePost(id, body);
             //Thread.Sleep(60 * 1000); //wait 60 seconds for PRL reasons
 
-            string filename = MakeReplyToChartImageAsync(users).Result;
+            string filename = MakeReplyToChartImageAsync(users,true).Result;
             string url = UploadImage(filename);
 
             body = "Reply To Chart\n";
@@ -883,7 +944,7 @@ namespace Shackmojis
             }
 
 
-            //top tadded threads
+            //top tagged threads
             SortedList<Post, Post> threadsAll = new SortedList<Post, Post>(new PostCompareTag(PostCompareTag.TAG_MAX));
             SortedList<Post, Post> threadsLol = new SortedList<Post, Post>(new PostCompareTag(PostCompareTag.TAG_LOL));
             SortedList<Post, Post> threadsInf = new SortedList<Post, Post>(new PostCompareTag(PostCompareTag.TAG_INF));
@@ -936,7 +997,7 @@ namespace Shackmojis
 
             System.Console.WriteLine(body);
             System.Console.WriteLine("\n\n");
-            MakePost(rootId, body);
+            MakePost(id, body);
 
         }
 
@@ -955,17 +1016,15 @@ namespace Shackmojis
 
                 System.Console.WriteLine("\nGetting data for: " + day);
 
-                dynamic response = GetDayRootPosts(day);
+                List<PostData> posts = GetThreadRootTimes(day);
 
-                GetThreadRootTimes(response);
-
-                if (response != null && response.rootPosts != null)
+                if (posts != null )
                 {
-                    int c = response.rootPosts.Count;
+                    int c = posts.Count;
                     System.Console.WriteLine("Thread Count: " + c);
                 }
 
-                GetThreads(response); //this does most of the work, getting emoji counts, and also make the lists of top tagged posts
+                GetThreads(posts); //this does most of the work, getting emoji counts, and also make the lists of top tagged posts
 
                 day = day.AddDays(-1);
             }
@@ -1018,7 +1077,7 @@ namespace Shackmojis
             }
 
 
-            //top tadded threads
+            //top tagged threads
             SortedList<Post, Post> threadsAll = new SortedList<Post, Post>(new PostCompareTag(PostCompareTag.TAG_MAX));
             SortedList<Post, Post> threadsLol = new SortedList<Post, Post>(new PostCompareTag(PostCompareTag.TAG_LOL));
             SortedList<Post, Post> threadsInf = new SortedList<Post, Post>(new PostCompareTag(PostCompareTag.TAG_INF));
@@ -1314,16 +1373,18 @@ namespace Shackmojis
             buf.Append("th{text-align: right}\n");
             buf.Append(".head td.corner{text-align:right;height: 13em;width: 13em;vertical-align: bottom;}\n");
             buf.Append("td{text-align: center;}\n");
-            buf.Append(".s35{background: #60ffff;}\n");
+            buf.Append(".s55{background: #70ffff;}\n");
+            buf.Append(".s35{background: #40ffff;}\n");
             buf.Append(".s20{background: #00ffff}\n");
             buf.Append(".s10{background: #00cccc}\n");
             buf.Append(".s5{background: #009999}\n");
             buf.Append(".s{background: #007777}\n");
+            buf.Append(".r55{background: #ff70ff;}\n");
             buf.Append(".r35{background: #ff40ff;}\n");
             buf.Append(".r20{background: #ff00ff}\n");
             buf.Append(".r10{background: #cc00cc}\n");
             buf.Append(".r5{background: #990099}\n");
-            buf.Append(".r0{background: #770077}\n");
+            buf.Append(".r{background: #770077}\n");
             buf.Append(".u55{background: #ff6060;}\n");
             buf.Append(".u35{background: #ff4040;}\n");
             buf.Append(".u20{background: #cc1010}\n");
@@ -1450,7 +1511,7 @@ namespace Shackmojis
                                 cls += "5";
                             }
 
-                            if (num > 10 && j!=0 && j-1!=i)
+                            if (num > 10)
                             {
                                 int v = (num-1) / 10;
                                 if (v > 10) v = 10;
@@ -1676,29 +1737,36 @@ namespace Shackmojis
                 Thread.Sleep(10 * 1000);//wait 10 seconds for post to process
 
                 string url = Program.APIURL + "getThread?id=" + threadID;
-                dynamic thread = GetJSON(url);
 
-                //System.Console.WriteLine(thread.ToString());
-                if (thread != null)
+                try
                 {
-                    if (thread.threads != null && thread.threads[0].posts != null)
-                    {
-                        foreach (dynamic post in thread.threads[0].posts)
-                        {
-                            if (post != null)
-                            {
-                                int id = post.id;
-                                string name = post.author;
-                                string pbody = post.body;
+                    dynamic thread = GetJSON(url);
 
-                                if (name.ToLower().Equals(username.ToLower()) && pbody.StartsWith(text))
+                    //System.Console.WriteLine(thread.ToString());
+                    if (thread != null)
+                    {
+                        if (thread.threads != null && thread.threads[0].posts != null)
+                        {
+                            foreach (dynamic post in thread.threads[0].posts)
+                            {
+                                if (post != null)
                                 {
-                                    //this seems to be the post we are looking for
-                                    return id;
+                                    int id = post.id;
+                                    string name = post.author;
+                                    string pbody = post.body;
+
+                                    if (name.ToLower().Equals(username.ToLower()) && pbody.StartsWith(text))
+                                    {
+                                        //this seems to be the post we are looking for
+                                        return id;
+                                    }
                                 }
                             }
                         }
                     }
+                }catch (Exception ex)
+                {
+                    Program.logger.LogError(ex, "Error Getting New Post ID"); 
                 }
             }
             return 0;
@@ -1828,6 +1896,7 @@ namespace Shackmojis
             while (i < cmt.Length) {
                 if (cmt[i] == '<' && (i+1) < cmt.Length) {
                     i++;
+                    bool skip = false;
                     if (cmt[i] != '/')
                     {
                         string tagbody = cmt.Substring(i, (i+25<cmt.Length)?25:cmt.Length-i);
@@ -1912,7 +1981,10 @@ namespace Shackmojis
                                     stack.Push(""); //found span without a class, add an empty tag to the stack so when we hit the end, we have something to pop (this should never happen)
                                 }
                                 break;
-
+                            default:
+                                ret += '<';
+                                skip = true;
+                                break;
                         }
                     }
                     else
@@ -1925,24 +1997,27 @@ namespace Shackmojis
                         {
                             case "b":
                                 ret += "]*";
-                                if (stack.Peek() == "]*") stack.Pop();
+                                if (stack.Count > 0 && stack.Peek() == "]*") stack.Pop();
                                 break;
                             case "i":
                                 ret += "]/";
-                                if (stack.Peek() == "]/") stack.Pop();
+                                if (stack.Count > 0 && stack.Peek() == "]/") stack.Pop();
                                 break;
                             case "u":
                                 ret += "]_";
-                                if (stack.Peek() == "]_") stack.Pop();
+                                if (stack.Count > 0 && stack.Peek() == "]_") stack.Pop();
                                 break;
                             case "span":
-                                ret += stack.Pop();
+                                if (stack.Count > 0)
+                                {
+                                    ret += stack.Pop();
+                                }
                                 break;
                         }
                     }
                     //fast foward to end of tag
                     int mark = i;
-                    if (i < cmt.Length)
+                    if (i < cmt.Length && !skip)
                     {
                         while (cmt[i++] != '>')
                         {
@@ -2010,7 +2085,8 @@ namespace Shackmojis
             return ret;
         }
 
-
+        // old code - dead after 8/21/2020 Winchatty api change
+        /*
         public dynamic GetDayRootPosts(DateTime day)
         {
             //gets the root posts for the specified day (UTC)
@@ -2049,6 +2125,14 @@ namespace Shackmojis
             System.Console.WriteLine("Requesting posts for " + date);
 
             return GetJSON(Program.APIURL + "getChattyRootPosts?limit=1000&date=" + date);
+        }
+        */
+
+        public dynamic GetCurrentRootPosts()
+        {
+            System.Console.WriteLine("Requesting current root posts" );
+
+            return GetJSON(Program.APIURL + "getChattyRootPosts?limit=1000");
         }
 
         public static dynamic GetJSON(string url)
@@ -2102,57 +2186,74 @@ namespace Shackmojis
             /*  Toggle comment - switch the beginning of this line between /* and //* (add or remove first /) to toggle function on or off
             return 1;
             /*/
-             
+#if DEBUG
+            return 1;
+#else
             //posts <body> to Shacknews as a reply to post <parent> (or root if parent is 0)
-            var httpWebRequest = (HttpWebRequest)WebRequest.Create(Program.APIURL + "postComment");
-            httpWebRequest.AutomaticDecompression = DecompressionMethods.Deflate | DecompressionMethods.GZip;
-            httpWebRequest.ContentType = "application/x-www-form-urlencoded";
-            httpWebRequest.Method = "POST";
-            using (var streamWriter = new StreamWriter(httpWebRequest.GetRequestStream()))
-            {
 
-                string post = "username=" + System.Web.HttpUtility.UrlPathEncode(Program.USERNAME) + "&" +
-                    "password=" + System.Web.HttpUtility.UrlPathEncode(Program.PASSWORD) + "&" +
-                    "parentId=" + parent + "&" +
-                    "text=" + System.Web.HttpUtility.UrlEncode(body);
-                //System.Console.WriteLine(post);
-
-                streamWriter.Write(post);
-            }
-            var httpResponse = (HttpWebResponse)httpWebRequest.GetResponse();
-            using (var streamReader = new StreamReader(httpResponse.GetResponseStream()))
-            {
-                var responseText = streamReader.ReadToEnd();
-
-                dynamic resp = JsonConvert.DeserializeObject(responseText);
-                if (resp.error == null && resp.result == "success")
-                {
-                    //this doesn't necessarily return the id for the post just made as the post takes some time to process even after the post web request returns
-                    //dynamic latest = GetJSON(Program.APIURL + "getNewestPostInfo");
-                    //int id = latest.id;
-                    return 1;// id; 
-                }
-                else
-                {
-                    System.Console.WriteLine(responseText);
-
-                    if (attempt > 0 || responseText.Contains("ERR_POST_RATE_LIMIT"))
+            int tries = 3;
+            bool success = false;
+            while(!success && tries > 0){
+                try{
+                    var httpWebRequest = (HttpWebRequest)WebRequest.Create(Program.APIURL + "postComment");
+                    httpWebRequest.AutomaticDecompression = DecompressionMethods.Deflate | DecompressionMethods.GZip;
+                    httpWebRequest.ContentType = "application/x-www-form-urlencoded";
+                    httpWebRequest.Method = "POST";
+                    using (var streamWriter = new StreamWriter(httpWebRequest.GetRequestStream()))
                     {
-                        Thread.Sleep(120 * 1000); //hope it was PRL and retry after waiting
-                       return MakePost(parent, body, 0);
-                    }
-                    else
-                    {
-                        return 1;//it turns out we don't really want to throw an exception. It's better to miss one post than to not do any of the later posts.
-                        throw new Exception("Error making post to " + Program.APIURL + ", result: " + responseText);
-                    }
-                }
-            }
 
-            //return 0;
+                        string post = "username=" + System.Web.HttpUtility.UrlPathEncode(Program.USERNAME) + "&" +
+                            "password=" + System.Web.HttpUtility.UrlPathEncode(Program.PASSWORD) + "&" +
+                            "parentId=" + parent + "&" +
+                            "text=" + System.Web.HttpUtility.UrlEncode(body);
+                        //System.Console.WriteLine(post);
+
+                        streamWriter.Write(post);
+                    }
+                    var httpResponse = (HttpWebResponse)httpWebRequest.GetResponse();
+                    using (var streamReader = new StreamReader(httpResponse.GetResponseStream()))
+                    {
+                        var responseText = streamReader.ReadToEnd();
+
+                        dynamic resp = JsonConvert.DeserializeObject(responseText);
+                        if (resp.error == null && resp.result == "success")
+                        {
+                            //this doesn't necessarily return the id for the post just made as the post takes some time to process even after the post web request returns
+                            //dynamic latest = GetJSON(Program.APIURL + "getNewestPostInfo");
+                            //int id = latest.id;
+                            return 1;// id; 
+                        }
+                        else
+                        {
+                            System.Console.WriteLine(responseText);
+
+                            if (attempt > 0 || responseText.Contains("ERR_POST_RATE_LIMIT"))
+                            {
+                                Thread.Sleep(120 * 1000); //hope it was PRL and retry after waiting
+                               return MakePost(parent, body, 0);
+                            }
+                            else
+                            {
+                                //return 1;//it turns out we don't really want to throw an exception. It's better to miss one post than to not do any of the later posts.
+                                throw new Exception("Error making post to " + Program.APIURL + ", result: " + responseText);
+                            }
+                        }
+                    }
+                }catch (Exception ex)
+                {
+                    Program.logger.LogError(ex, "Error Making Post");
+                }
+                tries--;
+                Thread.Sleep(2 * PRL_DELAY); 
+            }
+            return 0;
+#endif
+
             //*/
         }
 
+
+        /*
         public void GetThreadRootTimes(dynamic root)
         {
             //finds the min and max times from the list of root posts provided
@@ -2180,36 +2281,76 @@ namespace Shackmojis
                 }
             }
         }
+        */
 
-        public void GetThreads(dynamic root)
+        public List<PostData> GetThreadRootTimes(DateTime day)
+        {
+            List < PostData > pdlist = new List<PostData>();
+
+            startTime = day;
+            if(startTime.Hour > 0)
+            {
+                startTime.AddHours(-startTime.Hour);
+            }
+            if (startTime.Minute > 0)
+            {
+                startTime.AddHours(-startTime.Minute);
+            }
+            if (startTime.Second > 0)
+            {
+                startTime.AddSeconds(-startTime.Second);
+            }
+            if (startTime.Millisecond > 0)
+            {
+                startTime.AddMilliseconds(-startTime.Millisecond);
+            }
+
+
+            foreach (PostData pd in postDataList.postDataList.Values)
+            {
+                DateTime date = pd.postDate;
+                if(date.Year == day.Year && date.Month == day.Month && date.Day == day.Day)
+                {
+                    pdlist.Add(pd);
+
+                    if (pd.postDate > maxPostDate)
+                    {
+                        maxPostDate = pd.postDate;
+                    }
+                    if (pd.postDate < minPostDate)
+                    {
+                        minPostDate = pd.postDate;
+                    }
+                }
+            }
+
+            return pdlist;
+        }
+
+        public void GetThreads(List<PostData> threadList)
         {
             //if past a list of root posts, requests the full thread for each post and processses all the posts
             //it automatically delays 100ms between each request
             //it does skip the daily thread summary thread, so that it doesn't count emoji in the emoji summary post (this may cause it to skip some lol-tagged posts though)
            
-            if (root != null && root.rootPosts != null)
+
+            foreach (PostData pd in threadList)
             {
-                foreach (dynamic post in root.rootPosts)
+                if (pd != null && pd.summary == false)
                 {
-                    if (post != null && post.id != null)
+                    int id = pd.id;
+                    Thread.Sleep(100);
+                    GetThread(id);
+
+                    rootCount++;
+                    if (rootCount % 10 == 0)
                     {
-                        int id = post.id;
-                        string text = post.body;
-                        if (!text.StartsWith(SUMMARY_THREAD_START)) //don't count previous day's summary thread, as this would recount all the emoji from the day before
-                        {
-
-                            Thread.Sleep(100);
-                            GetThread(id);
-
-                            rootCount++;
-                            if (rootCount % 10 == 0)
-                            {
-                                System.Console.WriteLine("Thread " + rootCount);
-                            }
-                        }
+                        System.Console.WriteLine("Thread " + rootCount);
                     }
+                    
                 }
             }
+            
         }
 
         public void GetThread(int id)
@@ -2221,7 +2362,7 @@ namespace Shackmojis
             //System.Console.WriteLine(thread.ToString());
             if (thread != null)
             {
-                if (thread.threads != null && thread.threads[0].posts != null)
+                if (thread.threads != null && thread.threads.Count > 0 && thread.threads[0].posts != null)
                 {
                     foreach (dynamic post in thread.threads[0].posts)
                     {
@@ -2243,6 +2384,13 @@ namespace Shackmojis
                 }
                 wordCount += post.WordCount;
             }
+
+            if (root == null)
+            {
+                //nuked thread?
+                return;
+            }
+
 
             root.ThreadSize = currentThread.Count;
             //calc thread stats
@@ -2380,9 +2528,14 @@ namespace Shackmojis
                 pt.Text = body;
                 currentThread.Add(pt.Id, pt);
 
+                if (pt.Text.Contains("&lt;") || pt.Text.Contains("&gt;"))
+                {
+                    pt.Text = HtmlDecode(pt.Text);
+                }
+
                 int count;
                 HashSet<string> emojis = new HashSet<string>();
-                count = GetEmojis(body, emojis);
+                count = GetEmojis(body, emojis, emojiPopularity);
                 pt.Emojis = String.Join("",emojis);
                 pt.NumEmoji = count;
                 pt.UniqueEmoji = emojis.Count;
@@ -2452,7 +2605,7 @@ namespace Shackmojis
 
                 //add to date array
                 bool root = parent == 0;
-                DateTime postT = pt.PostDate;//.ToLocalTime();//.ToUniversalTime();  already UTC?
+                DateTime postT = pt.PostDate.ToLocalTime(); //We want to post date to be local time, so that any post from midnight to 1am appears as hour 0
                 int hour = (int)(postT - startTime).TotalHours;
                 if(hour < maxHours && hour >= 0)
                 {
@@ -2577,7 +2730,7 @@ namespace Shackmojis
             }
         }
 
-        public static int GetEmojis(string text, HashSet<string> emojis )
+        public static int GetEmojis(string text, HashSet<string> emojis, Dictionary<string, int> ep )
         {
             //returns a string of unique emojis, a total count and a unique count for a specified text
             int count = 0;
@@ -2643,6 +2796,19 @@ namespace Shackmojis
                 {
                     count++;
                     emojis.Add(em);
+
+                    //add to popular emojis
+                    if (ep.ContainsKey(em))
+                    {
+                        int val = ep.GetValueOrDefault(em);
+                        ep.Remove(em);
+                        ep.Add(em, val + 1);
+                    }
+                    else
+                    {
+                        ep.Add(em, 1);
+                    }
+
                 }
             }
 
@@ -2879,7 +3045,7 @@ namespace Shackmojis
             int id = -1;
             string start = msgStart.ToLower();
 
-            dynamic threads = GetDayRootPosts(DateTime.Now);
+            dynamic threads = GetCurrentRootPosts();
 
             if (threads != null && threads.rootPosts != null)
             {
@@ -2892,6 +3058,13 @@ namespace Shackmojis
 
                         text = rxTag.Replace(text, "");  //removes html tags (shacktags)
 
+                        if (text.ToLower().StartsWith(start))
+                        {
+                            id = tid;
+                            break;
+                        }
+
+                        text = text.Replace("  ", " ");
                         if (text.ToLower().StartsWith(start))
                         {
                             id = tid;
@@ -2939,7 +3112,7 @@ namespace Shackmojis
             /*/
 
             //posts <body> to Shacknews as a reply to post <parent> (or root if parent is 0)
-
+#if !DEBUG
             //string fileLocation = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + Path.DirectorySeparatorChar + "somefile.jpg";
             NameValueCollection values = new NameValueCollection();
             NameValueCollection files = new NameValueCollection();
@@ -2955,9 +3128,9 @@ namespace Shackmojis
             {
                 return input.GetAttributeValue("value", "");
             }
-            
+#endif
 
-            return "";
+            return "Upload Failed";
 
             //*/
         }
@@ -3025,6 +3198,13 @@ namespace Shackmojis
                 return reader.ReadToEnd();
             };
         }
+
+        public string HtmlDecode(string text)
+        {
+            text = text.Replace("&lt;", "<").Replace("&gt;", ">").Replace("&apos;", "'").Replace("&quot;", "\"");
+            return text;
+        }
     }
+
 
 }

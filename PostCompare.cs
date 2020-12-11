@@ -18,6 +18,14 @@ namespace Shackmojis
             {
                 return 1;
             }
+            if (px.UniqueEmoji > py.UniqueEmoji)
+            {
+                return -1;
+            }
+            else if (px.UniqueEmoji < py.UniqueEmoji)
+            {
+                return 1;
+            }
             else if (px.Id > py.Id)
             {
                 return 1;

@@ -19,7 +19,7 @@ namespace Shackmojis
             }
             else if (px.Length > py.Length)
             {
-                return -11;
+                return -1;
             }
             else if (px.Length < py.Length)
             {
